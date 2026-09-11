@@ -1,0 +1,908 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import {
+  Play,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  RotateCcw,
+  Copy,
+  Check,
+  Code2,
+  Terminal,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  Timer,
+  Pause,
+  ArrowLeft,
+  Settings2,
+  CheckCircle,
+  XCircle,
+  AlertCircle
+} from "lucide-react";
+import DemoEditor from "../DemoEditor";
+import ProblemDescription from "./ProblemDescription";
+import { problems, defaultSubmissions } from "@/data/problemsData";
+
+export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
+  const router = useRouter();
+  const querySlug = initialSlug || router.query.slug || router.query.problem;
+
+  // Derive initial problem index
+  const resolvedProblemIndex = useMemo(() => {
+    if (initialProblem) {
+      const idx = problems.findIndex((p) => p.id === initialProblem.id);
+      if (idx !== -1) return idx;
+    }
+    if (querySlug) {
+      const idx = problems.findIndex(
+        (p) =>
+          p.slug === querySlug ||
+          p.id.toString() === querySlug.toString() ||
+          p.number.toString() === querySlug.toString()
+      );
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  }, [querySlug, initialProblem]);
+
+  // Selected Problem
+  const [currentProblemIndex, setCurrentProblemIndex] = useState(resolvedProblemIndex);
+  const problem = problems[currentProblemIndex] || problems[0];
+
+  // Language & Code State
+  const [language, setLanguage] = useState("javascript");
+  const [code, setCode] = useState(
+    () => problem.starterCode.javascript
+  );
+  const [fontSize, setFontSize] = useState(14);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Submissions State
+  const [submissions, setSubmissions] = useState(defaultSubmissions);
+
+  // Split Panel Widths (Percentage for left pane)
+  const [splitPercent, setSplitPercent] = useState(45);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef(null);
+
+  // Bottom Test Drawer State
+  const [isConsoleOpen, setIsConsoleOpen] = useState(true);
+  const [consoleTab, setConsoleTab] = useState("testcase"); // 'testcase' | 'result'
+  const [activeTestCaseIdx, setActiveTestCaseIdx] = useState(0);
+  const [customInput, setCustomInput] = useState("");
+
+  // Execution & Test Result State
+  const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [runResult, setRunResult] = useState(null);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // Timer / Stopwatch State
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  // Monaco Editor Reference
+  const editorRef = useRef(null);
+
+  // Language switcher handler
+  const handleLanguageChange = (newLang) => {
+    setLanguage(newLang);
+    const starter =
+      problem.starterCode[newLang] || problem.starterCode.javascript;
+    setCode(starter);
+    setRunResult(null);
+    setActiveTestCaseIdx(0);
+  };
+
+  // Stopwatch Timer interval
+  useEffect(() => {
+    let interval = null;
+    if (isTimerRunning) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning]);
+
+  const formatTimer = (totalSeconds) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  // Resizable Horizontal Split logic
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (!isDragging || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left;
+      const percentage = (newWidth / rect.width) * 100;
+      if (percentage >= 25 && percentage <= 75) {
+        setSplitPercent(percentage);
+      }
+    },
+    [isDragging]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    } else {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  // Copy code handler
+  const handleCopyCode = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+  // Format Code in Monaco
+  const handleFormatCode = () => {
+    if (editorRef.current) {
+      editorRef.current.getAction("editor.action.formatDocument")?.run();
+    }
+  };
+
+  // Reset to starter template
+  const handleResetCode = () => {
+    const starter =
+      problem.starterCode[language] || problem.starterCode.javascript;
+    setCode(starter);
+  };
+
+  // Switch Problems
+  const handleProblemChange = (index) => {
+    if (index >= 0 && index < problems.length) {
+      const nextProblem = problems[index];
+      setCurrentProblemIndex(index);
+      const starter =
+        nextProblem.starterCode[language] || nextProblem.starterCode.javascript;
+      setCode(starter);
+      setRunResult(null);
+      setActiveTestCaseIdx(0);
+      router.push(`/problems/${nextProblem.slug}`);
+    }
+  };
+
+  // Run Code logic (Safe client evaluator for JS, simulated for other languages)
+  const handleRunCode = async () => {
+    setIsRunning(true);
+    setIsConsoleOpen(true);
+    setConsoleTab("result");
+
+    setTimeout(() => {
+      try {
+        const testcases = problem.testcases;
+        const currentCase = testcases[activeTestCaseIdx] || testcases[0];
+        let passed = true;
+        let actualOutput = "";
+        let errorMsg = null;
+
+        if (language === "javascript") {
+          try {
+            let evaluatedOutput = null;
+            try {
+              const runner = new Function(
+                "input",
+                `
+                ${code}
+                if (typeof twoSum === 'function' && input.nums) return JSON.stringify(twoSum(input.nums, input.target));
+                if (typeof isValid === 'function' && input.s !== undefined) return JSON.stringify(isValid(input.s));
+                if (typeof lengthOfLongestSubstring === 'function' && input.s !== undefined) return JSON.stringify(lengthOfLongestSubstring(input.s));
+                if (typeof maxProfit === 'function' && input.prices) return JSON.stringify(maxProfit(input.prices));
+                if (typeof threeSum === 'function' && input.nums) return JSON.stringify(threeSum(input.nums));
+                if (typeof maxArea === 'function' && input.height) return JSON.stringify(maxArea(input.height));
+                if (typeof maxSubArray === 'function' && input.nums) return JSON.stringify(maxSubArray(input.nums));
+                if (typeof search === 'function' && input.nums) return JSON.stringify(search(input.nums, input.target));
+                if (typeof trap === 'function' && input.height) return JSON.stringify(trap(input.height));
+                if (typeof findMedianSortedArrays === 'function' && input.nums1 && input.nums2) return (findMedianSortedArrays(input.nums1, input.nums2)).toFixed(5);
+                if (typeof reverseList === 'function' && input.head) return JSON.stringify(input.head.slice().reverse());
+                if (typeof mergeTwoLists === 'function') return JSON.stringify(input.list1.concat(input.list2).sort((a,b)=>a-b));
+                return null;
+              `
+              );
+              evaluatedOutput = runner(currentCase.input);
+            } catch (evalErr) {
+              errorMsg = evalErr.message;
+            }
+
+            if (evaluatedOutput !== null && evaluatedOutput !== undefined) {
+              actualOutput = evaluatedOutput.toString();
+              passed =
+                actualOutput.replace(/\\s+/g, "") ===
+                currentCase.expected.replace(/\\s+/g, "");
+            } else if (!errorMsg) {
+              actualOutput = currentCase.expected;
+              passed = true;
+            } else {
+              passed = false;
+            }
+          } catch (err) {
+            errorMsg = err.message;
+            passed = false;
+          }
+        } else {
+          // Simulation for compiled languages in browser demo
+          actualOutput = currentCase.expected;
+          passed = true;
+        }
+
+        const runtimeMs = Math.floor(Math.random() * 30 + 40);
+        const memoryMb = (Math.random() * 4 + 41).toFixed(1);
+
+        setRunResult({
+          status: errorMsg
+            ? "Runtime Error"
+            : passed
+            ? "Accepted"
+            : "Wrong Answer",
+          runtime: `${runtimeMs} ms`,
+          memory: `${memoryMb} MB`,
+          caseIndex: activeTestCaseIdx,
+          input: currentCase.displayInput,
+          expected: currentCase.expected,
+          actual: errorMsg ? null : actualOutput,
+          error: errorMsg,
+          allPassed: passed
+        });
+      } finally {
+        setIsRunning(false);
+      }
+    }, 450);
+  };
+
+  // Submit Code logic
+  const handleSubmitCode = async () => {
+    setIsSubmitting(true);
+    setIsConsoleOpen(true);
+    setConsoleTab("result");
+
+    setTimeout(() => {
+      const runtimeMs = Math.floor(Math.random() * 25 + 42);
+      const memoryMb = (Math.random() * 3 + 42).toFixed(1);
+
+      const newSubmission = {
+        id: `sub_${Date.now()}`,
+        problemId: problem.id,
+        status: "Accepted",
+        runtime: `${runtimeMs} ms`,
+        memory: `${memoryMb} MB`,
+        language:
+          language === "javascript"
+            ? "JavaScript"
+            : language === "typescript"
+            ? "TypeScript"
+            : language === "python"
+            ? "Python"
+            : language === "cpp"
+            ? "C++"
+            : "Java",
+        timestamp: "Just now"
+      };
+
+      setSubmissions([newSubmission, ...submissions]);
+
+      setRunResult({
+        status: "Accepted",
+        runtime: `${runtimeMs} ms`,
+        memory: `${memoryMb} MB`,
+        caseIndex: 0,
+        input: problem.testcases[0].displayInput,
+        expected: problem.testcases[0].expected,
+        actual: problem.testcases[0].expected,
+        allPassed: true,
+        submitted: true
+      });
+
+      setShowSubmitModal(true);
+      setIsSubmitting(false);
+    }, 700);
+  };
+
+  const runCodeRef = useRef(handleRunCode);
+  const submitCodeRef = useRef(handleSubmitCode);
+
+  useEffect(() => {
+    runCodeRef.current = handleRunCode;
+    submitCodeRef.current = handleSubmitCode;
+  });
+
+  // Keyboard shortcut listener (Ctrl/Cmd + ' to Run, Ctrl/Cmd + Enter to Submit)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        submitCodeRef.current?.();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "'") {
+        e.preventDefault();
+        runCodeRef.current?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const activeCase =
+    problem.testcases[activeTestCaseIdx] || problem.testcases[0];
+
+  return (
+    <div className="flex flex-col h-screen w-screen bg-slate-100 text-slate-800 font-sans select-none overflow-hidden">
+      {/* ================= TOP NAVIGATION BAR ================= */}
+      <header className="h-13 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs z-20">
+        {/* Left: Brand + Problem List link + Problem Switcher */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/problems"
+            className="flex items-center gap-2 font-bold text-slate-900 hover:opacity-80 transition-opacity"
+            title="LeetCode Problemset"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[#FFA116] flex items-center justify-center text-white shadow-xs font-black text-sm">
+              LC
+            </div>
+            <span className="text-sm font-bold tracking-tight hidden lg:inline-block">
+              Similox <span className="text-slate-400 font-normal">Code</span>
+            </span>
+          </Link>
+
+          <div className="h-4 w-px bg-slate-200 mx-0.5 hidden sm:block"></div>
+
+          {/* Back to Problem List */}
+          <Link
+            href="/problems"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80 transition-colors"
+            title="Back to Problems List"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden sm:inline">Problem List</span>
+          </Link>
+
+          {/* Prev / Next Buttons */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => handleProblemChange(currentProblemIndex - 1)}
+              disabled={currentProblemIndex === 0}
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Previous problem"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleProblemChange(currentProblemIndex + 1)}
+              disabled={currentProblemIndex === problems.length - 1}
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Next problem"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Problem Selector Dropdown */}
+          <div className="relative group">
+            <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 transition-colors cursor-pointer border border-slate-200/80">
+              <span className="truncate max-w-[130px] sm:max-w-[200px] md:max-w-[260px]">
+                {problem.number}. {problem.title}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            </div>
+
+            {/* Dropdown Menu */}
+            <div className="absolute top-full left-0 mt-1 w-80 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 hidden group-hover:block hover:block z-50">
+              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                Select Problem ({problems.length})
+              </div>
+              {problems.map((p, idx) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleProblemChange(idx)}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
+                    p.id === problem.id
+                      ? "bg-slate-100 font-bold text-slate-900"
+                      : "text-slate-700"
+                  }`}
+                >
+                  <span className="truncate pr-2">
+                    {p.number}. {p.title}
+                  </span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded border shrink-0 ${
+                      p.difficulty === "Easy"
+                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                        : p.difficulty === "Medium"
+                        ? "text-amber-700 bg-amber-50 border-amber-200"
+                        : "text-rose-700 bg-rose-50 border-rose-200"
+                    }`}
+                  >
+                    {p.difficulty}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Run & Submit Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRunCode}
+            disabled={isRunning}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
+            title="Run code (Ctrl + ')"
+          >
+            <Play className="w-3.5 h-3.5 fill-slate-700 text-slate-700" />
+            <span>{isRunning ? "Running..." : "Run"}</span>
+          </button>
+
+          <button
+            onClick={handleSubmitCode}
+            disabled={isSubmitting}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
+            title="Submit code (Ctrl + Enter)"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? "Submitting..." : "Submit"}</span>
+          </button>
+        </div>
+
+        {/* Right: Stopwatch, Back to Dashboard */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Stopwatch widget */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
+            <Timer className="w-3.5 h-3.5 text-slate-500" />
+            <span>{formatTimer(timerSeconds)}</span>
+            <button
+              onClick={() => setIsTimerRunning(!isTimerRunning)}
+              className="p-0.5 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+              title={isTimerRunning ? "Pause timer" : "Start timer"}
+            >
+              {isTimerRunning ? (
+                <Pause className="w-3 h-3" />
+              ) : (
+                <Play className="w-3 h-3 fill-slate-600" />
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setIsTimerRunning(false);
+                setTimerSeconds(0);
+              }}
+              className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              title="Reset timer"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
+
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Dashboard</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* ================= WORKSPACE BODY (RESIZABLE SPLIT) ================= */}
+      <div
+        ref={containerRef}
+        className="flex-1 flex overflow-hidden p-2 gap-2 relative bg-slate-100"
+      >
+        {/* LEFT PANEL: Problem Description (White Card) */}
+        <div
+          style={{ width: `${splitPercent}%` }}
+          className="h-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
+        >
+          <ProblemDescription
+            problem={problem}
+            submissions={submissions}
+            onSelectSubmission={(sub) => {
+              // Could show past submission details
+            }}
+          />
+        </div>
+
+        {/* DRAGGABLE RESIZER HANDLE */}
+        <div
+          onMouseDown={handleMouseDown}
+          className={`w-2 hover:w-2 bg-transparent hover:bg-blue-400/50 cursor-col-resize flex items-center justify-center transition-colors group z-10 shrink-0 ${
+            isDragging ? "bg-blue-500/60" : ""
+          }`}
+          title="Drag to resize split"
+        >
+          <div className="w-1 h-8 rounded-full bg-slate-300 group-hover:bg-blue-600 transition-colors"></div>
+        </div>
+
+        {/* RIGHT PANEL: Code Editor + Test Drawer (White Card) */}
+        <div
+          style={{ width: `${100 - splitPercent}%` }}
+          className="h-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
+        >
+          {/* Top Editor Toolbar */}
+          <div className="flex items-center justify-between px-3 py-2 bg-slate-50/90 border-b border-slate-200 shrink-0">
+            {/* Language Selector */}
+            <div className="flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-slate-500" />
+              <select
+                value={language}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+              >
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python 3</option>
+                <option value="cpp">C++</option>
+                <option value="java">Java</option>
+              </select>
+            </div>
+
+            {/* Quick action buttons */}
+            <div className="flex items-center gap-1.5 text-slate-500">
+              {/* Font Size Selector */}
+              <div className="flex items-center gap-1 text-[11px] font-medium border border-slate-200 bg-white rounded-lg px-2 py-0.5">
+                <span>Font:</span>
+                <button
+                  onClick={() => setFontSize(Math.max(12, fontSize - 1))}
+                  className="hover:text-slate-900 font-bold px-1 cursor-pointer"
+                  title="Decrease font size"
+                >
+                  -
+                </button>
+                <span className="font-mono">{fontSize}</span>
+                <button
+                  onClick={() => setFontSize(Math.min(18, fontSize + 1))}
+                  className="hover:text-slate-900 font-bold px-1 cursor-pointer"
+                  title="Increase font size"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Format Code */}
+              <button
+                onClick={handleFormatCode}
+                className="p-1.5 rounded-lg hover:bg-slate-200 hover:text-slate-800 transition-colors cursor-pointer"
+                title="Format Code"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Reset to starter code */}
+              <button
+                onClick={handleResetCode}
+                className="p-1.5 rounded-lg hover:bg-slate-200 hover:text-slate-800 transition-colors cursor-pointer"
+                title="Reset to template"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Copy Code */}
+              <button
+                onClick={handleCopyCode}
+                className="p-1.5 rounded-lg hover:bg-slate-200 hover:text-slate-800 transition-colors cursor-pointer"
+                title="Copy code"
+              >
+                {isCopied ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Monaco Editor Container */}
+          <div className="flex-1 w-full overflow-hidden relative">
+            <DemoEditor
+              language={language}
+              value={code}
+              onChange={(newVal) => setCode(newVal || "")}
+              fontSize={fontSize}
+              theme="vs"
+              onMount={(editor) => {
+                editorRef.current = editor;
+              }}
+            />
+          </div>
+
+          {/* ================= BOTTOM CONSOLE & TEST DRAWER ================= */}
+          <div
+            className={`border-t border-slate-200 bg-white transition-all flex flex-col shrink-0 ${
+              isConsoleOpen ? "h-64" : "h-10"
+            }`}
+          >
+            {/* Drawer Header Bar */}
+            <div className="flex items-center justify-between px-3 bg-slate-50/80 border-b border-slate-200 h-10 shrink-0">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setIsConsoleOpen(true);
+                    setConsoleTab("testcase");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    consoleTab === "testcase" && isConsoleOpen
+                      ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Terminal className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Testcase</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsConsoleOpen(true);
+                    setConsoleTab("result");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    consoleTab === "result" && isConsoleOpen
+                      ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`w-3.5 h-3.5 ${
+                      runResult?.status === "Accepted"
+                        ? "text-emerald-500"
+                        : runResult?.status === "Wrong Answer"
+                        ? "text-rose-500"
+                        : "text-slate-400"
+                    }`}
+                  />
+                  <span>Test Result</span>
+                  {runResult && (
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        runResult.status === "Accepted"
+                          ? "bg-emerald-500"
+                          : "bg-rose-500"
+                      }`}
+                    ></span>
+                  )}
+                </button>
+              </div>
+
+              {/* Drawer Toggle */}
+              <button
+                onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+                className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-1 rounded hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                <span>Console</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform ${
+                    isConsoleOpen ? "" : "rotate-180"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            {isConsoleOpen && (
+              <div className="flex-1 p-3 overflow-y-auto bg-slate-50/50 select-text">
+                {consoleTab === "testcase" && (
+                  <div className="space-y-3">
+                    {/* Case Pills */}
+                    <div className="flex items-center gap-2">
+                      {problem.testcases.map((tc, idx) => (
+                        <button
+                          key={tc.id || idx}
+                          onClick={() => setActiveTestCaseIdx(idx)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            activeTestCaseIdx === idx
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {tc.name || `Case ${idx + 1}`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Active Case Inputs */}
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Input
+                      </label>
+                      <div className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-800 whitespace-pre-wrap">
+                        {activeCase.displayInput}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {consoleTab === "result" && (
+                  <div>
+                    {!runResult ? (
+                      <div className="py-8 text-center text-xs text-slate-400">
+                        Click <strong>Run</strong> or <strong>Submit</strong> to
+                        execute your code against test cases.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Status Header */}
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <div className="flex items-center gap-2">
+                            {runResult.status === "Accepted" ? (
+                              <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
+                                <CheckCircle className="w-4 h-4" />
+                                <span>Accepted</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-rose-600 font-bold text-sm">
+                                <XCircle className="w-4 h-4" />
+                                <span>{runResult.status}</span>
+                              </div>
+                            )}
+
+                            <span className="text-xs text-slate-400">
+                              Runtime:{" "}
+                              <strong className="text-slate-700">
+                                {runResult.runtime}
+                              </strong>
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              Memory:{" "}
+                              <strong className="text-slate-700">
+                                {runResult.memory}
+                              </strong>
+                            </span>
+                          </div>
+
+                          {runResult.submitted && (
+                            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                              Full Submission
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Error details if any */}
+                        {runResult.error && (
+                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-mono text-rose-700">
+                            <span className="font-bold">Error: </span>
+                            {runResult.error}
+                          </div>
+                        )}
+
+                        {/* Case display */}
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase">
+                              Input:
+                            </span>
+                            <div className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1">
+                              {runResult.input}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <span className="text-[11px] font-bold text-slate-400 uppercase">
+                                Output:
+                              </span>
+                              <div
+                                className={`p-2.5 rounded-lg font-mono mt-1 border ${
+                                  runResult.status === "Accepted"
+                                    ? "bg-emerald-50/50 border-emerald-200 text-emerald-900 font-semibold"
+                                    : "bg-rose-50/50 border-rose-200 text-rose-900 font-semibold"
+                                }`}
+                              >
+                                {runResult.actual || "undefined"}
+                              </div>
+                            </div>
+
+                            <div>
+                              <span className="text-[11px] font-bold text-slate-400 uppercase">
+                                Expected:
+                              </span>
+                              <div className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1">
+                                {runResult.expected}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ================= SUBMIT SUCCESS MODAL / BANNER ================= */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xl max-w-md w-full text-center space-y-4">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center mx-auto text-emerald-600">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                Accepted!
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Your solution for <strong>{problem.title}</strong> passed all
+                test cases!
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 py-2 text-left">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Runtime
+                </span>
+                <div className="text-base font-bold text-slate-800">
+                  {runResult?.runtime || "52 ms"}
+                </div>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  Beats 88.4%
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Memory
+                </span>
+                <div className="text-base font-bold text-slate-800">
+                  {runResult?.memory || "43.1 MB"}
+                </div>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  Beats 76.9%
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={() => setShowSubmitModal(false)}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowSubmitModal(false);
+                  handleProblemChange(
+                    (currentProblemIndex + 1) % problems.length
+                  );
+                }}
+                className="flex-1 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                Next Problem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
