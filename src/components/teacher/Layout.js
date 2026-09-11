@@ -10,10 +10,23 @@ import {
   User,
   BookOpen
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import Custom404 from "@/pages/404";
 
 export default function TeacherLayout({ children, breadcrumbs = [] }) {
   const router = useRouter();
   const currentPath = router.pathname;
+  const { isTeacher, isHydrated } = useAuth();
+
+  // If client has not hydrated yet, render blank placeholder to prevent layout flashing
+  if (!isHydrated) {
+    return <div className="min-h-screen bg-[#f9fafb]" />;
+  }
+
+  // Role-based access control: Non-teachers get standard 404 page
+  if (!isTeacher) {
+    return <Custom404 />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f9fafb] text-gray-800 font-sans selection:bg-gray-200 flex flex-col">

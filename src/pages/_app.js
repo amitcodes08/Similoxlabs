@@ -1,5 +1,6 @@
 import { HeroUIProvider } from "@heroui/react";
 import { useRouter } from "next/router";
+import { AuthProvider } from "@/context/AuthContext";
 import { TeacherProvider } from "@/context/TeacherContext";
 import "../styles/globals.css";
 
@@ -8,9 +9,11 @@ export default function App({ Component, pageProps }) {
 
   return (
     <HeroUIProvider navigate={router.push}>
-      <TeacherProvider>
-        <Component {...pageProps} />
-      </TeacherProvider>
+      <AuthProvider>
+        <TeacherProvider>
+          <Component {...pageProps} />
+        </TeacherProvider>
+      </AuthProvider>
     </HeroUIProvider>
   );
 }

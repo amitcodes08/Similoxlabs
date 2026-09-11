@@ -29,9 +29,11 @@ import {
   DropdownMenu,
   DropdownItem
 } from "@heroui/react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ProblemList() {
   const router = useRouter();
+  const { isTeacher } = useAuth();
 
   // Profile Dropdown Menu items
   const profileMenuItems = useMemo(
@@ -46,18 +48,22 @@ export default function ProblemList() {
         label: "Dashboard",
         icon: LayoutDashboard
       },
-      {
-        key: "teacher",
-        label: "Teacher Portal",
-        icon: GraduationCap
-      },
+      ...(isTeacher
+        ? [
+            {
+              key: "teacher",
+              label: "Teacher Portal",
+              icon: GraduationCap
+            }
+          ]
+        : []),
       {
         key: "logout",
         label: "Logout",
         icon: LogOut
       }
     ],
-    []
+    [isTeacher]
   );
 
   const handleProfileMenuAction = (key) => {
@@ -259,14 +265,16 @@ export default function ProblemList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/teacher"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Open Teacher Portal"
-            >
-              <GraduationCap className="w-4 h-4 text-slate-600" />
-              <span>Teacher Portal</span>
-            </Link>
+            {isTeacher && (
+              <Link
+                href="/teacher"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Open Teacher Portal"
+              >
+                <GraduationCap className="w-4 h-4 text-slate-600" />
+                <span>Teacher Portal</span>
+              </Link>
+            )}
 
             <button
               onClick={handlePickRandom}
