@@ -15,7 +15,8 @@ import {
   ArrowRight,
   User,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  GraduationCap
 } from "lucide-react";
 import { problems, defaultSubmissions } from "@/data/problemsData";
 import {
@@ -46,6 +47,11 @@ export default function ProblemList() {
         icon: LayoutDashboard
       },
       {
+        key: "teacher",
+        label: "Teacher Portal",
+        icon: GraduationCap
+      },
+      {
         key: "logout",
         label: "Logout",
         icon: LogOut
@@ -57,10 +63,13 @@ export default function ProblemList() {
   const handleProfileMenuAction = (key) => {
     if (key === "profile" || key === "dashboard") {
       router.push("/");
+    } else if (key === "teacher") {
+      router.push("/teacher");
     } else if (key === "logout") {
       router.push("/");
     }
   };
+
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -250,6 +259,15 @@ export default function ProblemList() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/teacher"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Open Teacher Portal"
+            >
+              <GraduationCap className="w-4 h-4 text-slate-600" />
+              <span>Teacher Portal</span>
+            </Link>
+
             <button
               onClick={handlePickRandom}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
