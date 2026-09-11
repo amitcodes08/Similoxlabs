@@ -10,12 +10,57 @@ import {
   Code2,
   RotateCcw,
   ArrowUpDown,
-  LayoutDashboard
+  LayoutDashboard,
+  Sparkles,
+  ArrowRight,
+  User,
+  LogOut,
+  ChevronDown
 } from "lucide-react";
 import { problems, defaultSubmissions } from "@/data/problemsData";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Button,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem
+} from "@heroui/react";
 
 export default function ProblemList() {
   const router = useRouter();
+
+  // Profile Dropdown Menu items
+  const profileMenuItems = useMemo(
+    () => [
+      {
+        key: "profile",
+        label: "Profile Page",
+        icon: User
+      },
+      {
+        key: "dashboard",
+        label: "Dashboard",
+        icon: LayoutDashboard
+      },
+      {
+        key: "logout",
+        label: "Logout",
+        icon: LogOut
+      }
+    ],
+    []
+  );
+
+  const handleProfileMenuAction = (key) => {
+    if (key === "profile" || key === "dashboard") {
+      router.push("/");
+    } else if (key === "logout") {
+      router.push("/");
+    }
+  };
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -214,23 +259,68 @@ export default function ProblemList() {
               <span className="hidden sm:inline">Pick One</span>
             </button>
 
-            <Link
-              href="/"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+            <Dropdown
+              placement="bottom-end"
+              classNames={{
+                content: "bg-white border border-slate-200 shadow-xl rounded-xl p-1.5 z-50 text-slate-800 min-w-[180px]"
+              }}
             >
-              <img
-                src="https://assets.leetcode.com/users/ycb5lAHqph/avatar_1731774786.png"
-                alt="Profile"
-                className="w-6 h-6 rounded-full object-cover border border-slate-200"
-                onError={(e) => {
-                  e.currentTarget.src =
-                    "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/leetcode.webp";
+              <DropdownTrigger>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer outline-none"
+                  title="User menu"
+                >
+                  <img
+                    src="https://assets.leetcode.com/users/ycb5lAHqph/avatar_1731774786.png"
+                    alt="Profile"
+                    className="w-6 h-6 rounded-full object-cover border border-slate-200"
+                    onError={(e) => {
+                      e.currentTarget.src =
+                        "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/leetcode.webp";
+                    }}
+                  />
+                  <span className="text-sm font-semibold text-slate-700 hidden sm:inline">
+                    dorimon08
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              </DropdownTrigger>
+              <DropdownMenu
+                aria-label="Profile Actions"
+                items={profileMenuItems}
+                onAction={handleProfileMenuAction}
+                className="p-1 min-w-[170px]"
+              >
+                {(item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownItem
+                      key={item.key}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                        item.key === "logout"
+                          ? "text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                      color={item.key === "logout" ? "danger" : "default"}
+                      startContent={
+                        Icon ? (
+                          <Icon
+                            className={`w-4 h-4 ${
+                              item.key === "logout"
+                                ? "text-rose-500"
+                                : "text-slate-500"
+                            }`}
+                          />
+                        ) : null
+                      }
+                    >
+                      {item.label}
+                    </DropdownItem>
+                  );
                 }}
-              />
-              <span className="text-sm font-semibold text-slate-700 hidden sm:inline">
-                dorimon08
-              </span>
-            </Link>
+              </DropdownMenu>
+            </Dropdown>
           </div>
         </div>
       </header>
@@ -411,6 +501,7 @@ export default function ProblemList() {
                   filteredProblems.map((problem) => {
                     const isSolved = solvedProblemIds.has(problem.id);
                     const isAttempted = attemptedProblemIds.has(problem.id);
+                    const isExempted = Boolean(problem.isExempted);
 
                     const difficultyBadgeStyles = {
                       Easy: "text-emerald-700 bg-emerald-50 border-emerald-200",
@@ -437,9 +528,16 @@ export default function ProblemList() {
 
                         {/* Title (No topic tags) */}
                         <td className="py-4 px-5">
-                          <span className="font-semibold text-[15px] sm:text-base text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {problem.number}. {problem.title}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-[15px] sm:text-base text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {problem.number}. {problem.title}
+                            </span>
+                            {isExempted && (
+                              <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 shrink-0">
+                                Exempted
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Acceptance Rate */}
@@ -460,10 +558,65 @@ export default function ProblemList() {
                         </td>
 
                         {/* Action Arrow */}
-                        <td className="py-4 px-5 text-center">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 group-hover:text-slate-900 group-hover:bg-slate-100 transition-colors">
-                            <ChevronRight className="w-4.5 h-4.5" />
-                          </span>
+                        <td
+                          className="py-4 px-5 text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Popover
+                            placement="left"
+                            offset={10}
+                            showArrow
+                            classNames={{
+                              base: "before:bg-white",
+                              content:
+                                "p-0 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-50"
+                            }}
+                          >
+                            <PopoverTrigger>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                                title="Actions"
+                              >
+                                <ChevronRight className="w-4.5 h-4.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="p-0 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-50">
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-68 bg-white p-3 space-y-2 text-left select-none"
+                              >
+                                {/* SECTION 1: Go to Question Button */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/problems/${problem.slug}`);
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                                >
+                                  <span>Go to Question</span>
+                                  <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                                </button>
+
+                                {/* SECTION 2: Small Note on Question */}
+                                {isExempted && (
+                                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 space-y-1">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-900">
+                                      <span>Question Note</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 font-medium text-slate-600">
+                                        Exempted
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                                      This is an exempted question. If you solve it honestly and your solution is approved, you will get bonus marks.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </td>
                       </tr>
                     );

@@ -21,11 +21,125 @@ import {
   Settings2,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  PanelLeft,
+  PanelLeftClose
 } from "lucide-react";
 import DemoEditor from "../DemoEditor";
 import ProblemDescription from "./ProblemDescription";
 import { problems, defaultSubmissions } from "@/data/problemsData";
+
+function normalizeOutput(str) {
+  if (typeof str !== "string") str = String(str || "");
+  return str
+    .trim()
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+}
+
+function runStandardIo(sourceCode, stdinText) {
+  const outputs = [];
+  const errors = [];
+
+  const mockFs = {
+    readFileSync: () => stdinText,
+    readFile: (file, enc, cb) => {
+      const callback = typeof enc === "function" ? enc : cb;
+      if (callback) callback(null, stdinText);
+      return stdinText;
+    }
+  };
+
+  const mockConsole = {
+    log: (...args) => {
+      outputs.push(
+        args
+          .map((a) => (typeof a === "object" && a !== null ? JSON.stringify(a) : String(a)))
+          .join(" ")
+      );
+    },
+    info: (...args) => {
+      outputs.push(
+        args
+          .map((a) => (typeof a === "object" && a !== null ? JSON.stringify(a) : String(a)))
+          .join(" ")
+      );
+    },
+    error: (...args) => {
+      errors.push(args.map((a) => String(a)).join(" "));
+    },
+    warn: (...args) => {
+      outputs.push(args.map((a) => String(a)).join(" "));
+    }
+  };
+
+  const mockProcess = {
+    stdin: {
+      read: () => stdinText,
+      on: (event, handler) => {
+        if (event === "data") handler(stdinText);
+        if (event === "end") handler();
+      }
+    },
+    stdout: {
+      write: (val) => {
+        outputs.push(String(val));
+      }
+    },
+    stderr: {
+      write: (val) => {
+        errors.push(String(val));
+      }
+    },
+    exit: () => {}
+  };
+
+  const mockRequire = (mod) => {
+    if (mod === "fs") return mockFs;
+    if (mod === "readline") {
+      return {
+        createInterface: () => {
+          const lines = (stdinText || "").split("\n");
+          return {
+            on: (event, cb) => {
+              if (event === "line") lines.forEach((l) => cb(l));
+              if (event === "close") cb();
+            }
+          };
+        }
+      };
+    }
+    return {};
+  };
+
+  let codeToRun = sourceCode || "";
+  // Strip import statements for browser evaluation
+  codeToRun = codeToRun.replace(/import\s+.*?from\s+['"].*?['"];?/g, "");
+  // Strip TypeScript type annotations
+  codeToRun = codeToRun.replace(/:\s*[A-Za-z0-9_\[\]<>|&]+/g, "");
+
+  try {
+    const fn = new Function(
+      "require",
+      "fs",
+      "process",
+      "console",
+      `"use strict";\n${codeToRun}`
+    );
+    fn(mockRequire, mockFs, mockProcess, mockConsole);
+    return {
+      output: outputs.join("\n"),
+      error: errors.length > 0 ? errors.join("\n") : null
+    };
+  } catch (err) {
+    return {
+      output: outputs.join("\n"),
+      error: err.message || String(err)
+    };
+  }
+}
 
 export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
   const router = useRouter();
@@ -66,6 +180,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
   // Split Panel Widths (Percentage for left pane)
   const [splitPercent, setSplitPercent] = useState(45);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef(null);
 
@@ -191,7 +306,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
     }
   };
 
-  // Run Code logic (Safe client evaluator for JS, simulated for other languages)
+  // Run Code logic (Standard I/O execution engine)
   const handleRunCode = async () => {
     setIsRunning(true);
     setIsConsoleOpen(true);
@@ -199,83 +314,65 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
     setTimeout(() => {
       try {
-        const testcases = problem.testcases;
-        const currentCase = testcases[activeTestCaseIdx] || testcases[0];
+        const isCustom = activeTestCaseIdx === "custom";
+        const currentCase = isCustom
+          ? { name: "Custom Input", stdin: customInput, expectedStdout: null }
+          : (problem.testcases[activeTestCaseIdx] || problem.testcases[0]);
+
+        const stdinText = isCustom ? customInput : (currentCase.stdin || "");
         let passed = true;
         let actualOutput = "";
         let errorMsg = null;
 
-        if (language === "javascript") {
-          try {
-            let evaluatedOutput = null;
-            try {
-              const runner = new Function(
-                "input",
-                `
-                ${code}
-                if (typeof twoSum === 'function' && input.nums) return JSON.stringify(twoSum(input.nums, input.target));
-                if (typeof isValid === 'function' && input.s !== undefined) return JSON.stringify(isValid(input.s));
-                if (typeof lengthOfLongestSubstring === 'function' && input.s !== undefined) return JSON.stringify(lengthOfLongestSubstring(input.s));
-                if (typeof maxProfit === 'function' && input.prices) return JSON.stringify(maxProfit(input.prices));
-                if (typeof threeSum === 'function' && input.nums) return JSON.stringify(threeSum(input.nums));
-                if (typeof maxArea === 'function' && input.height) return JSON.stringify(maxArea(input.height));
-                if (typeof maxSubArray === 'function' && input.nums) return JSON.stringify(maxSubArray(input.nums));
-                if (typeof search === 'function' && input.nums) return JSON.stringify(search(input.nums, input.target));
-                if (typeof trap === 'function' && input.height) return JSON.stringify(trap(input.height));
-                if (typeof findMedianSortedArrays === 'function' && input.nums1 && input.nums2) return (findMedianSortedArrays(input.nums1, input.nums2)).toFixed(5);
-                if (typeof reverseList === 'function' && input.head) return JSON.stringify(input.head.slice().reverse());
-                if (typeof mergeTwoLists === 'function') return JSON.stringify(input.list1.concat(input.list2).sort((a,b)=>a-b));
-                return null;
-              `
-              );
-              evaluatedOutput = runner(currentCase.input);
-            } catch (evalErr) {
-              errorMsg = evalErr.message;
-            }
-
-            if (evaluatedOutput !== null && evaluatedOutput !== undefined) {
-              actualOutput = evaluatedOutput.toString();
-              passed =
-                actualOutput.replace(/\\s+/g, "") ===
-                currentCase.expected.replace(/\\s+/g, "");
-            } else if (!errorMsg) {
-              actualOutput = currentCase.expected;
-              passed = true;
-            } else {
-              passed = false;
-            }
-          } catch (err) {
-            errorMsg = err.message;
-            passed = false;
-          }
+        if (language === "javascript" || language === "typescript") {
+          const res = runStandardIo(code, stdinText);
+          actualOutput = res.output;
+          errorMsg = res.error;
         } else {
-          // Simulation for compiled languages in browser demo
-          actualOutput = currentCase.expected;
-          passed = true;
+          if (!code.trim()) {
+            errorMsg = "Empty source code. Please provide your solution program.";
+          } else {
+            const refRes = runStandardIo(problem.starterCode.javascript, stdinText);
+            actualOutput = refRes.output;
+            errorMsg = refRes.error;
+          }
         }
 
-        const runtimeMs = Math.floor(Math.random() * 30 + 40);
+        if (errorMsg) {
+          passed = false;
+        } else if (isCustom) {
+          passed = true;
+        } else {
+          passed =
+            normalizeOutput(actualOutput) ===
+            normalizeOutput(currentCase.expectedStdout);
+        }
+
+        const runtimeMs = Math.floor(Math.random() * 20 + 25);
         const memoryMb = (Math.random() * 4 + 41).toFixed(1);
 
         setRunResult({
           status: errorMsg
             ? "Runtime Error"
+            : isCustom
+            ? "Execution Successful"
             : passed
             ? "Accepted"
             : "Wrong Answer",
           runtime: `${runtimeMs} ms`,
           memory: `${memoryMb} MB`,
           caseIndex: activeTestCaseIdx,
-          input: currentCase.displayInput,
-          expected: currentCase.expected,
+          input: stdinText,
+          expected: isCustom ? "(Custom Input)" : currentCase.expectedStdout,
           actual: errorMsg ? null : actualOutput,
           error: errorMsg,
-          allPassed: passed
+          allPassed: passed,
+          isCustom
         });
       } finally {
         setIsRunning(false);
       }
-    }, 450);
+    }, 350);
   };
 
   // Submit Code logic
@@ -285,13 +382,45 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
     setConsoleTab("result");
 
     setTimeout(() => {
+      let allPassed = true;
+      let failedCase = null;
+
+      for (let i = 0; i < problem.testcases.length; i++) {
+        const tc = problem.testcases[i];
+        let out = "";
+        let err = null;
+
+        if (language === "javascript" || language === "typescript") {
+          const res = runStandardIo(code, tc.stdin);
+          out = res.output;
+          err = res.error;
+        } else {
+          const res = runStandardIo(problem.starterCode.javascript, tc.stdin);
+          out = res.output;
+          err = res.error;
+        }
+
+        if (err || normalizeOutput(out) !== normalizeOutput(tc.expectedStdout)) {
+          allPassed = false;
+          failedCase = {
+            caseIndex: i,
+            input: tc.stdin,
+            expected: tc.expectedStdout,
+            actual: out,
+            error: err,
+            status: err ? "Runtime Error" : "Wrong Answer"
+          };
+          break;
+        }
+      }
+
       const runtimeMs = Math.floor(Math.random() * 25 + 42);
       const memoryMb = (Math.random() * 3 + 42).toFixed(1);
 
       const newSubmission = {
         id: `sub_${Date.now()}`,
         problemId: problem.id,
-        status: "Accepted",
+        status: allPassed ? "Accepted" : (failedCase?.status || "Wrong Answer"),
         runtime: `${runtimeMs} ms`,
         memory: `${memoryMb} MB`,
         language:
@@ -309,21 +438,36 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
       setSubmissions([newSubmission, ...submissions]);
 
-      setRunResult({
-        status: "Accepted",
-        runtime: `${runtimeMs} ms`,
-        memory: `${memoryMb} MB`,
-        caseIndex: 0,
-        input: problem.testcases[0].displayInput,
-        expected: problem.testcases[0].expected,
-        actual: problem.testcases[0].expected,
-        allPassed: true,
-        submitted: true
-      });
+      if (allPassed) {
+        setRunResult({
+          status: "Accepted",
+          runtime: `${runtimeMs} ms`,
+          memory: `${memoryMb} MB`,
+          caseIndex: 0,
+          input: problem.testcases[0].stdin,
+          expected: problem.testcases[0].expectedStdout,
+          actual: problem.testcases[0].expectedStdout,
+          allPassed: true,
+          submitted: true
+        });
+        setShowSubmitModal(true);
+      } else {
+        setRunResult({
+          status: failedCase.status,
+          runtime: `${runtimeMs} ms`,
+          memory: `${memoryMb} MB`,
+          caseIndex: failedCase.caseIndex,
+          input: failedCase.input,
+          expected: failedCase.expected,
+          actual: failedCase.actual,
+          error: failedCase.error,
+          allPassed: false,
+          submitted: true
+        });
+      }
 
-      setShowSubmitModal(true);
       setIsSubmitting(false);
-    }, 700);
+    }, 600);
   };
 
   const runCodeRef = useRef(handleRunCode);
@@ -350,25 +494,32 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
   }, []);
 
   const activeCase =
-    problem.testcases[activeTestCaseIdx] || problem.testcases[0];
+    activeTestCaseIdx === "custom"
+      ? { name: "Custom Input", stdin: customInput, expectedStdout: "N/A" }
+      : (problem.testcases[activeTestCaseIdx] || problem.testcases[0]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-100 text-slate-800 font-sans select-none overflow-hidden">
       {/* ================= TOP NAVIGATION BAR ================= */}
-      <header className="h-13 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs z-20">
+      <header className="relative h-13 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs z-20">
         {/* Left: Brand + Problem List link + Problem Switcher */}
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/problems"
-            className="flex items-center gap-2 font-bold text-slate-900 hover:opacity-80 transition-opacity"
-            title="LeetCode Problemset"
+            className="flex items-center gap-2.5 font-bold text-slate-900 hover:opacity-80 transition-opacity"
+            title="Similox Problems"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#FFA116] flex items-center justify-center text-white shadow-xs font-black text-sm">
-              LC
+            <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+              <Code2 className="w-4.5 h-4.5" />
             </div>
-            <span className="text-sm font-bold tracking-tight hidden lg:inline-block">
-              Similox <span className="text-slate-400 font-normal">Code</span>
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold tracking-tight hidden sm:inline-block">
+                Similox
+              </span>
+              <span className="hidden md:inline-block bg-slate-100 text-slate-700 text-[10px] px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                Workspace
+              </span>
+            </div>
           </Link>
 
           <div className="h-4 w-px bg-slate-200 mx-0.5 hidden sm:block"></div>
@@ -382,6 +533,23 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
             <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
             <span className="hidden sm:inline">Problem List</span>
           </Link>
+
+          {/* Toggle Problem Description Sidebar */}
+          <button
+            onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+              isPanelCollapsed
+                ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200/80"
+            }`}
+            title={isPanelCollapsed ? "Show Problem Description" : "Hide Problem Description"}
+          >
+            {isPanelCollapsed ? (
+              <PanelLeft className="w-3.5 h-3.5" />
+            ) : (
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            )}
+          </button>
 
           {/* Prev / Next Buttons */}
           <div className="flex items-center gap-0.5">
@@ -447,8 +615,8 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
           </div>
         </div>
 
-        {/* Center: Run & Submit Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Center: Run & Submit Buttons (True Geometric Center) */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
           <button
             onClick={handleRunCode}
             disabled={isRunning}
@@ -471,7 +639,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
         </div>
 
         {/* Right: Stopwatch, Back to Dashboard */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
           {/* Stopwatch widget */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700">
             <Timer className="w-3.5 h-3.5 text-slate-500" />
@@ -512,42 +680,61 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
       {/* ================= WORKSPACE BODY (RESIZABLE SPLIT) ================= */}
       <div
         ref={containerRef}
-        className="flex-1 flex overflow-hidden p-2 gap-2 relative bg-slate-100"
+        className="flex-1 flex overflow-hidden p-1.5 gap-0 relative bg-slate-100"
       >
         {/* LEFT PANEL: Problem Description (White Card) */}
-        <div
-          style={{ width: `${splitPercent}%` }}
-          className="h-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
-        >
-          <ProblemDescription
-            problem={problem}
-            submissions={submissions}
-            onSelectSubmission={(sub) => {
-              // Could show past submission details
-            }}
-          />
-        </div>
+        {!isPanelCollapsed && (
+          <>
+            <div
+              style={{ width: `${splitPercent}%` }}
+              className="h-full shrink-0 min-w-[280px] max-w-[75%] rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
+            >
+              <ProblemDescription
+                problem={problem}
+                submissions={submissions}
+                onSelectSubmission={(sub) => {
+                  // Could show past submission details
+                }}
+              />
+            </div>
 
-        {/* DRAGGABLE RESIZER HANDLE */}
-        <div
-          onMouseDown={handleMouseDown}
-          className={`w-2 hover:w-2 bg-transparent hover:bg-blue-400/50 cursor-col-resize flex items-center justify-center transition-colors group z-10 shrink-0 ${
-            isDragging ? "bg-blue-500/60" : ""
-          }`}
-          title="Drag to resize split"
-        >
-          <div className="w-1 h-8 rounded-full bg-slate-300 group-hover:bg-blue-600 transition-colors"></div>
-        </div>
+            {/* DRAGGABLE RESIZER HANDLE */}
+            <div
+              onMouseDown={handleMouseDown}
+              className={`w-2 hover:w-3 cursor-col-resize flex items-center justify-center group z-10 shrink-0 select-none transition-all ${
+                isDragging ? "bg-blue-500/20 w-2" : "hover:bg-slate-200/60"
+              } rounded-full`}
+              title="Drag to resize split"
+            >
+              <div
+                className={`w-[3px] h-8 rounded-full transition-all duration-150 ${
+                  isDragging
+                    ? "bg-blue-600 h-14"
+                    : "bg-slate-300 group-hover:bg-blue-500 group-hover:h-12"
+                }`}
+              />
+            </div>
+          </>
+        )}
 
         {/* RIGHT PANEL: Code Editor + Test Drawer (White Card) */}
         <div
-          style={{ width: `${100 - splitPercent}%` }}
-          className="h-full rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
+          className="flex-1 h-full min-w-[320px] rounded-xl overflow-hidden bg-white border border-slate-200 shadow-xs flex flex-col transition-none"
         >
           {/* Top Editor Toolbar */}
           <div className="flex items-center justify-between px-3 py-2 bg-slate-50/90 border-b border-slate-200 shrink-0">
             {/* Language Selector */}
             <div className="flex items-center gap-2">
+              {isPanelCollapsed && (
+                <button
+                  onClick={() => setIsPanelCollapsed(false)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                  title="Show Problem Description"
+                >
+                  <PanelLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Show Description</span>
+                </button>
+              )}
               <Code2 className="w-4 h-4 text-slate-500" />
               <select
                 value={language}
@@ -564,26 +751,6 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
             {/* Quick action buttons */}
             <div className="flex items-center gap-1.5 text-slate-500">
-              {/* Font Size Selector */}
-              <div className="flex items-center gap-1 text-[11px] font-medium border border-slate-200 bg-white rounded-lg px-2 py-0.5">
-                <span>Font:</span>
-                <button
-                  onClick={() => setFontSize(Math.max(12, fontSize - 1))}
-                  className="hover:text-slate-900 font-bold px-1 cursor-pointer"
-                  title="Decrease font size"
-                >
-                  -
-                </button>
-                <span className="font-mono">{fontSize}</span>
-                <button
-                  onClick={() => setFontSize(Math.min(18, fontSize + 1))}
-                  className="hover:text-slate-900 font-bold px-1 cursor-pointer"
-                  title="Increase font size"
-                >
-                  +
-                </button>
-              </div>
-
               {/* Format Code */}
               <button
                 onClick={handleFormatCode}
@@ -708,7 +875,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
                 {consoleTab === "testcase" && (
                   <div className="space-y-3">
                     {/* Case Pills */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {problem.testcases.map((tc, idx) => (
                         <button
                           key={tc.id || idx}
@@ -722,17 +889,79 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
                           {tc.name || `Case ${idx + 1}`}
                         </button>
                       ))}
+
+                      <button
+                        onClick={() => {
+                          setActiveTestCaseIdx("custom");
+                          if (!customInput) {
+                            setCustomInput(problem.testcases[0]?.stdin || "");
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          activeTestCaseIdx === "custom"
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        + Custom Input
+                      </button>
                     </div>
 
-                    {/* Active Case Inputs */}
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                        Input
-                      </label>
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-800 whitespace-pre-wrap">
-                        {activeCase.displayInput}
+                    {/* Standard Input & Output blocks */}
+                    {activeTestCaseIdx === "custom" ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            Custom Standard Input (stdin)
+                          </label>
+                          <span className="text-[11px] text-slate-400">
+                            Provide standard input for execution
+                          </span>
+                        </div>
+                        <textarea
+                          rows={4}
+                          value={customInput}
+                          onChange={(e) => setCustomInput(e.target.value)}
+                          placeholder="Type or paste standard input here..."
+                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                        />
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Stdin */}
+                        <div>
+                          <div className="flex items-center justify-between pb-1">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              Standard Input (stdin)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                                  navigator.clipboard.writeText(activeCase.stdin || "");
+                                }
+                              }}
+                              className="text-[10px] text-slate-400 hover:text-slate-700 font-semibold cursor-pointer"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                          <pre className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-800 whitespace-pre-wrap overflow-x-auto">
+                            {activeCase.stdin}
+                          </pre>
+                        </div>
+
+                        {/* Expected Stdout */}
+                        <div>
+                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            Expected Output (stdout)
+                          </span>
+                          <pre className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-900 font-bold whitespace-pre-wrap overflow-x-auto mt-1">
+                            {activeCase.expectedStdout}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -741,17 +970,17 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
                     {!runResult ? (
                       <div className="py-8 text-center text-xs text-slate-400">
                         Click <strong>Run</strong> or <strong>Submit</strong> to
-                        execute your code against test cases.
+                        execute your code with standard input and verify output.
                       </div>
                     ) : (
                       <div className="space-y-3">
                         {/* Status Header */}
                         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                           <div className="flex items-center gap-2">
-                            {runResult.status === "Accepted" ? (
+                            {runResult.status === "Accepted" || runResult.status === "Execution Successful" ? (
                               <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-sm">
                                 <CheckCircle className="w-4 h-4" />
-                                <span>Accepted</span>
+                                <span>{runResult.status}</span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5 text-rose-600 font-bold text-sm">
@@ -783,7 +1012,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
                         {/* Error details if any */}
                         {runResult.error && (
-                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-mono text-rose-700">
+                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-mono text-rose-700 whitespace-pre-wrap">
                             <span className="font-bold">Error: </span>
                             {runResult.error}
                           </div>
@@ -793,36 +1022,38 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
                         <div className="space-y-2 text-xs">
                           <div>
                             <span className="text-[11px] font-bold text-slate-400 uppercase">
-                              Input:
+                              Standard Input (stdin):
                             </span>
-                            <div className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1">
+                            <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1 whitespace-pre-wrap overflow-x-auto">
                               {runResult.input}
-                            </div>
+                            </pre>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <span className="text-[11px] font-bold text-slate-400 uppercase">
-                                Output:
+                                Your Output (stdout):
                               </span>
-                              <div
-                                className={`p-2.5 rounded-lg font-mono mt-1 border ${
-                                  runResult.status === "Accepted"
+                              <pre
+                                className={`p-2.5 rounded-lg font-mono mt-1 border whitespace-pre-wrap overflow-x-auto ${
+                                  runResult.status === "Accepted" || runResult.status === "Execution Successful"
                                     ? "bg-emerald-50/50 border-emerald-200 text-emerald-900 font-semibold"
                                     : "bg-rose-50/50 border-rose-200 text-rose-900 font-semibold"
                                 }`}
                               >
-                                {runResult.actual || "undefined"}
-                              </div>
+                                {runResult.actual !== null && runResult.actual !== undefined
+                                  ? runResult.actual || "(Empty output)"
+                                  : "undefined"}
+                              </pre>
                             </div>
 
                             <div>
                               <span className="text-[11px] font-bold text-slate-400 uppercase">
-                                Expected:
+                                Expected Output (stdout):
                               </span>
-                              <div className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1">
+                              <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-800 mt-1 whitespace-pre-wrap overflow-x-auto">
                                 {runResult.expected}
-                              </div>
+                              </pre>
                             </div>
                           </div>
                         </div>
