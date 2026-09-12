@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { problems as baseProblems } from "@/data/problemsData";
 
 const TeacherContext = createContext();
@@ -392,6 +393,8 @@ function normalizeQuestion(q, fallbackIndex = 0) {
 }
 
 export function TeacherProvider({ children }) {
+  const queryClient = useQueryClient();
+
   const [questions, setQuestions] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -408,6 +411,29 @@ export function TeacherProvider({ children }) {
     }
     return baseProblems.map((item, idx) => normalizeQuestion(item, idx));
   });
+
+  // Sync real questions from database on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchDbQuestions() {
+      try {
+        const res = await fetch("/api/questions");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.questions) && isMounted) {
+            const normalized = data.questions.map((item, idx) => normalizeQuestion(item, idx));
+            setQuestions(normalized);
+          }
+        }
+      } catch (err) {
+        console.warn("TeacherContext: Could not fetch questions from DB, using fallback", err);
+      }
+    }
+    fetchDbQuestions();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [students] = useState(initialStudents);
 
@@ -440,84 +466,120 @@ export function TeacherProvider({ children }) {
     }
   }, [questions, submissions]);
 
-  // Add new question
-  const addQuestion = (newQuestionData) => {
-    let maxNumber = 0;
-    let maxId = 0;
+  // Add new question to Database & Local State
+  const addQuestion = async (newQuestionData) => {
+    try {
+      const res = await fetch("/api/questions/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": "TEACHER"
+        },
+        body: JSON.stringify(newQuestionData)
+      });
 
-    questions.forEach((q, idx) => {
-      const n = Number(q.number) || (idx + 1);
-      if (n > maxNumber) maxNumber = n;
-      const i = typeof q.id === "number" ? q.id : parseInt(String(q.id).replace(/\D/g, ""), 10) || (idx + 1);
-      if (i > maxId) maxId = i;
-    });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create question in database");
+      }
 
-    const nextNumber = maxNumber + 1;
-    const nextId = Math.max(maxId, maxNumber) + 1;
+      const createdQuestion = normalizeQuestion(data.question, questions.length);
 
-    const createdQuestion = normalizeQuestion({
-      id: nextId,
-      number: nextNumber,
-      createdAt: new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      }),
-      acceptance: "0.0%",
-      ...newQuestionData,
-      number: nextNumber,
-      id: nextId
-    }, questions.length);
+      setQuestions((prev) => [createdQuestion, ...prev]);
 
-    setQuestions((prev) => [createdQuestion, ...prev]);
-    return createdQuestion;
+      // Invalidate frontend cache so Student Portal instantly displays the new question
+      if (queryClient) {
+        queryClient.invalidateQueries({ queryKey: ["problems"] });
+      }
+
+      return createdQuestion;
+    } catch (err) {
+      console.error("Failed to add question to DB:", err);
+      throw err;
+    }
   };
 
-  // Update question
-  const updateQuestion = (questionId, updatedData) => {
-    const strId = String(questionId).trim();
-    const numId = Number(questionId);
+  // Update question in Database & Local State
+  const updateQuestion = async (questionId, updatedData) => {
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": "TEACHER"
+        },
+        body: JSON.stringify(updatedData)
+      });
 
-    setQuestions((prev) =>
-      prev.map((q) => {
-        const matches =
-          String(q.id) === strId ||
-          (!isNaN(numId) && Number(q.id) === numId) ||
-          (q.number !== undefined && String(q.number) === strId);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update question in database");
+      }
 
-        if (!matches) return q;
+      const updated = normalizeQuestion(data.question);
 
-        return normalizeQuestion({
-          ...q,
-          ...updatedData,
-          id: q.id,
-          number: q.number ?? updatedData.number
-        });
-      })
-    );
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === questionId || q.id === updated.id ? updated : q))
+      );
+
+      // Invalidate frontend cache for problem list and problem details
+      if (queryClient) {
+        queryClient.invalidateQueries({ queryKey: ["problems"] });
+        queryClient.invalidateQueries({ queryKey: ["problem"] });
+      }
+
+      return updated;
+    } catch (err) {
+      console.error("Failed to update question in DB:", err);
+      throw err;
+    }
   };
 
-  // Delete question
-  const deleteQuestion = (questionId) => {
-    const strId = String(questionId).trim();
-    const numId = Number(questionId);
+  // Delete question from Database & Local State
+  const deleteQuestion = async (questionId) => {
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: "DELETE",
+        headers: {
+          "x-user-role": "TEACHER"
+        }
+      });
 
-    setQuestions((prev) =>
-      prev.filter((q) => {
-        if (String(q.id) === strId) return false;
-        if (!isNaN(numId) && Number(q.id) === numId) return false;
-        if (q.number !== undefined && String(q.number) === strId) return false;
-        return true;
-      })
-    );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete question from database");
+      }
 
-    setSubmissions((prev) =>
-      prev.filter((s) => {
-        if (String(s.questionId) === strId) return false;
-        if (!isNaN(numId) && Number(s.questionId) === numId) return false;
-        return true;
-      })
-    );
+      const strId = String(questionId).trim();
+      const numId = Number(questionId);
+
+      setQuestions((prev) =>
+        prev.filter((q) => {
+          if (String(q.id) === strId) return false;
+          if (!isNaN(numId) && Number(q.id) === numId) return false;
+          if (q.number !== undefined && String(q.number) === strId) return false;
+          return true;
+        })
+      );
+
+      setSubmissions((prev) =>
+        prev.filter((s) => {
+          if (String(s.questionId) === strId) return false;
+          if (!isNaN(numId) && Number(s.questionId) === numId) return false;
+          return true;
+        })
+      );
+
+      // Invalidate frontend cache
+      if (queryClient) {
+        queryClient.invalidateQueries({ queryKey: ["problems"] });
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Failed to delete question from DB:", err);
+      throw err;
+    }
   };
 
   // Get question with enriched submission metrics

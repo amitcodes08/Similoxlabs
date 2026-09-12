@@ -17,6 +17,8 @@ import { useTeacher } from "@/context/TeacherContext";
 export default function QuestionForm({ mode = "create", initialData = null }) {
   const router = useRouter();
   const { addQuestion, updateQuestion } = useTeacher();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   // Form State
   const [title, setTitle] = useState(initialData?.title || "");
@@ -189,12 +191,15 @@ public class Solution {
   };
 
   // Submit Handler
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) {
       alert("Please enter a question title.");
       return;
     }
+
+    setIsSubmitting(true);
+    setSubmitError("");
 
     const slug = title
       .toLowerCase()
@@ -217,17 +222,29 @@ public class Solution {
       starterCode
     };
 
-    if (mode === "edit" && initialData?.id) {
-      updateQuestion(initialData.id, questionPayload);
-    } else {
-      addQuestion(questionPayload);
+    try {
+      if (mode === "edit" && initialData?.id) {
+        await updateQuestion(initialData.id, questionPayload);
+      } else {
+        await addQuestion(questionPayload);
+      }
+      router.push("/teacher");
+    } catch (err) {
+      console.error("Error saving question:", err);
+      setSubmitError(err.message || "Failed to save question to database");
+      alert(err.message || "Failed to save question to database");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    router.push("/teacher");
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto pb-12">
+      {submitError && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-700">
+          {submitError}
+        </div>
+      )}
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
@@ -257,10 +274,17 @@ public class Solution {
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>{mode === "edit" ? "Save Changes" : "Create Question"}</span>
+            <span>
+              {isSubmitting
+                ? "Saving to Database..."
+                : mode === "edit"
+                ? "Save Changes"
+                : "Create Question"}
+            </span>
           </button>
         </div>
       </div>
@@ -721,10 +745,17 @@ public class Solution {
         </button>
         <button
           type="submit"
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          disabled={isSubmitting}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
           <Save className="w-4 h-4" />
-          <span>{mode === "edit" ? "Save Changes" : "Create Question"}</span>
+          <span>
+            {isSubmitting
+              ? "Saving to Database..."
+              : mode === "edit"
+              ? "Save Changes"
+              : "Create Question"}
+          </span>
         </button>
       </div>
     </form>

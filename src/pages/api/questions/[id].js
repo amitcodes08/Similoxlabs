@@ -288,10 +288,48 @@ export default async function handler(req, res) {
     }
   }
 
+  // --- DELETE: Delete Question (Teacher / Admin Only) ---
+  if (req.method === 'DELETE') {
+    const auth = await authorizeTeacherOrAdmin(req);
+    if (!auth.isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        error: auth.error || 'Forbidden: Access restricted to TEACHER and ADMIN only.',
+        role: auth.role
+      });
+    }
+
+    try {
+      const existingQuestion = await findQuestion();
+      if (!existingQuestion) {
+        return res.status(404).json({
+          success: false,
+          error: `Question with identifier "${id}" not found.`
+        });
+      }
+
+      await db.delete(testCases).where(eq(testCases.questionId, existingQuestion.id));
+      await db.delete(questions).where(eq(questions.id, existingQuestion.id));
+
+      return res.status(200).json({
+        success: true,
+        message: 'Question deleted successfully',
+        deletedId: existingQuestion.id
+      });
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete question due to a server error.',
+        message: error.message
+      });
+    }
+  }
+
   // Any other HTTP method
-  res.setHeader('Allow', ['GET', 'PUT', 'PATCH']);
+  res.setHeader('Allow', ['GET', 'PUT', 'PATCH', 'DELETE']);
   return res.status(405).json({
     success: false,
-    error: `Method ${req.method} Not Allowed. Use PUT or PATCH to edit question.`
+    error: `Method ${req.method} Not Allowed. Use GET, PUT, PATCH, or DELETE.`
   });
 }
