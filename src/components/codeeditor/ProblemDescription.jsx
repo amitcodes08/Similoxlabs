@@ -56,6 +56,32 @@ export default function ProblemDescription({
     Hard: "text-rose-700 bg-rose-50 border-rose-200"
   };
 
+  const normDifficulty = (() => {
+    if (!problem.difficulty) return "Easy";
+    const u = String(problem.difficulty).toUpperCase();
+    if (u === "HARD") return "Hard";
+    if (u === "MEDIUM") return "Medium";
+    return "Easy";
+  })();
+
+  const safeExamples = Array.isArray(problem.examples)
+    ? problem.examples
+    : typeof problem.examples === "string"
+    ? (() => { try { return JSON.parse(problem.examples); } catch { return []; } })()
+    : [];
+
+  const safeConstraints = Array.isArray(problem.constraints)
+    ? problem.constraints
+    : typeof problem.constraints === "string"
+    ? (() => { try { return JSON.parse(problem.constraints); } catch { return []; } })()
+    : [];
+
+  const safeHints = Array.isArray(problem.hints)
+    ? problem.hints
+    : typeof problem.hints === "string"
+    ? (() => { try { return JSON.parse(problem.hints); } catch { return []; } })()
+    : [];
+
   const currentSubmissions = submissions.filter(
     (s) => s.problemId === problem.id
   );
@@ -139,11 +165,11 @@ export default function ProblemDescription({
               <div className="flex flex-wrap items-center gap-2.5 mt-3 text-xs">
                 <span
                   className={`font-semibold px-2.5 py-0.5 rounded-md border ${
-                    difficultyColors[problem.difficulty] ||
+                    difficultyColors[normDifficulty] ||
                     difficultyColors.Easy
                   }`}
                 >
-                  {problem.difficulty}
+                  {normDifficulty}
                 </span>
 
                 {problem.isExempted && (
@@ -306,114 +332,118 @@ export default function ProblemDescription({
             )}
 
             {/* Examples / Sample Cases */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Sample Input &amp; Output
-              </h3>
+            {safeExamples.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Sample Input &amp; Output
+                </h3>
 
-              {problem.examples.map((ex, idx) => {
-                const sampleIn = ex.stdin !== undefined ? ex.stdin : (typeof ex.input === 'string' ? ex.input : JSON.stringify(ex.input));
-                const sampleOut = ex.stdout !== undefined ? ex.stdout : (typeof ex.output === 'string' ? ex.output : JSON.stringify(ex.output));
-                const inKey = `in_${idx}`;
-                const outKey = `out_${idx}`;
+                {safeExamples.map((ex, idx) => {
+                  const sampleIn = ex.stdin !== undefined ? ex.stdin : (typeof ex.input === 'string' ? ex.input : JSON.stringify(ex.input));
+                  const sampleOut = ex.stdout !== undefined ? ex.stdout : (typeof ex.output === 'string' ? ex.output : JSON.stringify(ex.output));
+                  const inKey = `in_${idx}`;
+                  const outKey = `out_${idx}`;
 
-                return (
-                  <div
-                    key={ex.id || idx}
-                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 text-xs"
-                  >
-                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                      <span>Sample Case {idx + 1}:</span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* Sample Input */}
-                      <div>
-                        <div className="flex items-center justify-between pb-1 text-[11px] font-semibold text-slate-500">
-                          <span>Sample Input:</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(sampleIn, inKey)}
-                            className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 font-medium cursor-pointer"
-                          >
-                            {copiedKey === inKey ? (
-                              <>
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span className="text-emerald-600">Copied</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                <span>Copy</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-900 text-xs overflow-x-auto whitespace-pre-wrap">
-                          {sampleIn}
-                        </pre>
+                  return (
+                    <div
+                      key={ex.id || idx}
+                      className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 text-xs"
+                    >
+                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        <span>Sample Case {idx + 1}:</span>
                       </div>
 
-                      {/* Sample Output */}
-                      <div>
-                        <div className="flex items-center justify-between pb-1 text-[11px] font-semibold text-slate-500">
-                          <span>Sample Output:</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(sampleOut, outKey)}
-                            className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 font-medium cursor-pointer"
-                          >
-                            {copiedKey === outKey ? (
-                              <>
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span className="text-emerald-600">Copied</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                <span>Copy</span>
-                              </>
-                            )}
-                          </button>
+                      <div className="space-y-3">
+                        {/* Sample Input */}
+                        <div>
+                          <div className="flex items-center justify-between pb-1 text-[11px] font-semibold text-slate-500">
+                            <span>Sample Input:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(sampleIn, inKey)}
+                              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 font-medium cursor-pointer"
+                            >
+                              {copiedKey === inKey ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-emerald-600">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-900 text-xs overflow-x-auto whitespace-pre-wrap">
+                            {sampleIn}
+                          </pre>
                         </div>
-                        <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-900 font-bold text-xs overflow-x-auto whitespace-pre-wrap">
-                          {sampleOut}
-                        </pre>
-                      </div>
 
-                      {ex.explanation && (
-                        <div className="pt-1 font-sans text-slate-600">
-                          <span className="text-slate-500 font-medium">
-                            Explanation:{" "}
-                          </span>
-                          <span>{ex.explanation}</span>
+                        {/* Sample Output */}
+                        <div>
+                          <div className="flex items-center justify-between pb-1 text-[11px] font-semibold text-slate-500">
+                            <span>Sample Output:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(sampleOut, outKey)}
+                              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 font-medium cursor-pointer"
+                            >
+                              {copiedKey === outKey ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-emerald-600">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <pre className="p-2.5 bg-white border border-slate-200 rounded-lg font-mono text-slate-900 font-bold text-xs overflow-x-auto whitespace-pre-wrap">
+                            {sampleOut}
+                          </pre>
                         </div>
-                      )}
+
+                        {ex.explanation && (
+                          <div className="pt-1 font-sans text-slate-600">
+                            <span className="text-slate-500 font-medium">
+                              Explanation:{" "}
+                            </span>
+                            <span>{ex.explanation}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Constraints */}
-            <div className="space-y-2.5">
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Constraints:
-              </h3>
-              <ul className="list-disc pl-5 space-y-1 text-xs text-slate-600 marker:text-slate-400">
-                {problem.constraints.map((c, i) => (
-                  <li key={i}>
-                    <code className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">
-                      {c}
-                    </code>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {safeConstraints.length > 0 && (
+              <div className="space-y-2.5">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                  Constraints:
+                </h3>
+                <ul className="list-disc pl-5 space-y-1 text-xs text-slate-600 marker:text-slate-400">
+                  {safeConstraints.map((c, i) => (
+                    <li key={i}>
+                      <code className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">
+                        {c}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Hints Accordion */}
-            {problem.hints && problem.hints.length > 0 && (
+            {safeHints.length > 0 && (
               <div className="space-y-2 pt-2">
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
                   <Lightbulb className="w-4 h-4 text-amber-500" />
@@ -421,7 +451,7 @@ export default function ProblemDescription({
                 </h3>
 
                 <div className="space-y-2">
-                  {problem.hints.map((hint, i) => {
+                  {safeHints.map((hint, i) => {
                     const isExpanded = !!expandedHints[i];
                     return (
                       <div

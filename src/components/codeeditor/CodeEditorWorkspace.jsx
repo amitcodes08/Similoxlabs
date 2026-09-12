@@ -5,7 +5,6 @@ import {
   Play,
   CheckCircle2,
   ChevronLeft,
-  ChevronRight,
   ChevronDown,
   RotateCcw,
   Copy,
@@ -27,7 +26,8 @@ import {
 } from "lucide-react";
 import DemoEditor from "../DemoEditor";
 import ProblemDescription from "./ProblemDescription";
-import { problems, defaultSubmissions } from "@/data/problemsData";
+import { useProblem } from "@/hooks/useProblems";
+import { problems as fallbackProblems, defaultSubmissions } from "@/data/problemsData";
 
 function normalizeOutput(str) {
   if (typeof str !== "string") str = String(str || "");
@@ -145,33 +145,30 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
   const router = useRouter();
   const querySlug = initialSlug || router.query.slug || router.query.problem;
 
-  // Derive initial problem index
-  const resolvedProblemIndex = useMemo(() => {
-    if (initialProblem) {
-      const idx = problems.findIndex((p) => p.id === initialProblem.id);
-      if (idx !== -1) return idx;
-    }
-    if (querySlug) {
-      const idx = problems.findIndex(
-        (p) =>
-          p.slug === querySlug ||
-          p.id.toString() === querySlug.toString() ||
-          p.number.toString() === querySlug.toString()
-      );
-      if (idx !== -1) return idx;
-    }
-    return 0;
-  }, [querySlug, initialProblem]);
+  const targetSlug = querySlug || initialProblem?.slug || "two-sum";
+  const {
+    data: fetchedProblem,
+    isLoading: isLoadingProblem
+  } = useProblem(targetSlug, initialProblem);
 
-  // Selected Problem
-  const [currentProblemIndex, setCurrentProblemIndex] = useState(resolvedProblemIndex);
-  const problem = problems[currentProblemIndex] || problems[0];
+  const problem = fetchedProblem || initialProblem || fallbackProblems[0];
 
   // Language & Code State
   const [language, setLanguage] = useState("javascript");
   const [code, setCode] = useState(
-    () => problem.starterCode.javascript
+    () => problem?.starterCode?.[language] || problem?.starterCode?.javascript || ""
   );
+
+  // Synchronize code when problem or language changes
+  useEffect(() => {
+    if (problem?.starterCode) {
+      const starter =
+        problem.starterCode[language] ||
+        problem.starterCode.javascript ||
+        "";
+      setCode(starter);
+    }
+  }, [problem?.id, language]);
   const [fontSize, setFontSize] = useState(14);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -207,7 +204,7 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
   const handleLanguageChange = (newLang) => {
     setLanguage(newLang);
     const starter =
-      problem.starterCode[newLang] || problem.starterCode.javascript;
+      problem?.starterCode?.[newLang] || problem?.starterCode?.javascript || "";
     setCode(starter);
     setRunResult(null);
     setActiveTestCaseIdx(0);
@@ -288,22 +285,8 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
   // Reset to starter template
   const handleResetCode = () => {
     const starter =
-      problem.starterCode[language] || problem.starterCode.javascript;
+      problem?.starterCode?.[language] || problem?.starterCode?.javascript || "";
     setCode(starter);
-  };
-
-  // Switch Problems
-  const handleProblemChange = (index) => {
-    if (index >= 0 && index < problems.length) {
-      const nextProblem = problems[index];
-      setCurrentProblemIndex(index);
-      const starter =
-        nextProblem.starterCode[language] || nextProblem.starterCode.javascript;
-      setCode(starter);
-      setRunResult(null);
-      setActiveTestCaseIdx(0);
-      router.push(`/problems/${nextProblem.slug}`);
-    }
   };
 
   // Run Code logic (Standard I/O execution engine)
@@ -551,67 +534,11 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
             )}
           </button>
 
-          {/* Prev / Next Buttons */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => handleProblemChange(currentProblemIndex - 1)}
-              disabled={currentProblemIndex === 0}
-              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Previous problem"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => handleProblemChange(currentProblemIndex + 1)}
-              disabled={currentProblemIndex === problems.length - 1}
-              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Next problem"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Problem Selector Dropdown */}
-          <div className="relative group">
-            <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 transition-colors cursor-pointer border border-slate-200/80">
-              <span className="truncate max-w-[130px] sm:max-w-[200px] md:max-w-[260px]">
-                {problem.number}. {problem.title}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            </div>
-
-            {/* Dropdown Menu */}
-            <div className="absolute top-full left-0 mt-1 w-80 max-h-96 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 hidden group-hover:block hover:block z-50">
-              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                Select Problem ({problems.length})
-              </div>
-              {problems.map((p, idx) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleProblemChange(idx)}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer ${
-                    p.id === problem.id
-                      ? "bg-slate-100 font-bold text-slate-900"
-                      : "text-slate-700"
-                  }`}
-                >
-                  <span className="truncate pr-2">
-                    {p.number}. {p.title}
-                  </span>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded border shrink-0 ${
-                      p.difficulty === "Easy"
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : p.difficulty === "Medium"
-                        ? "text-amber-700 bg-amber-50 border-amber-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}
-                  >
-                    {p.difficulty}
-                  </span>
-                </button>
-              ))}
-            </div>
+          {/* Current Problem Title Display */}
+          <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 border border-slate-200/80">
+            <span className="truncate max-w-[150px] sm:max-w-[240px] md:max-w-[340px]">
+              {problem.number ? `${problem.number}. ` : ""}{problem.title}
+            </span>
           </div>
         </div>
 
@@ -1122,13 +1049,11 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
               <button
                 onClick={() => {
                   setShowSubmitModal(false);
-                  handleProblemChange(
-                    (currentProblemIndex + 1) % problems.length
-                  );
+                  router.push("/problems");
                 }}
                 className="flex-1 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors"
               >
-                Next Problem
+                Problem List
               </button>
             </div>
           </div>

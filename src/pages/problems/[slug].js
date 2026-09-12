@@ -45,18 +45,92 @@ export default function ProblemDetailPage({ initialProblem, problemSlug }) {
 }
 
 export async function getStaticPaths() {
-  const paths = problems.map((p) => ({
-    params: { slug: p.slug },
-  }));
-  return { paths, fallback: false };
+  let paths = [];
+  if (process.env.DATABASE_URL) {
+    try {
+      const { getDb, questions } = await import("@/db");
+      const db = getDb();
+      const allQ = await db.select({ slug: questions.slug }).from(questions);
+      paths = allQ.map((q) => ({ params: { slug: q.slug } }));
+    } catch (err) {
+      console.error("Error generating static paths from DB:", err);
+    }
+  }
+
+  if (paths.length === 0) {
+    paths = problems.map((p) => ({
+      params: { slug: p.slug },
+    }));
+  }
+
+  return { paths, fallback: "blocking" };
 }
 
 export async function getStaticProps({ params }) {
-  const problem = problems.find((p) => p.slug === params.slug) || null;
+  let problem = null;
+
+  if (process.env.DATABASE_URL) {
+    try {
+      const { getDb, questions, testCases } = await import("@/db");
+      const { eq } = await import("drizzle-orm");
+      const db = getDb();
+
+      // Fetch real question by slug from database
+      const rows = await db
+        .select()
+        .from(questions)
+        .where(eq(questions.slug, params.slug))
+        .limit(1);
+
+      if (rows.length > 0) {
+        const q = rows[0];
+        let diff = "Easy";
+        if (q.difficulty) {
+          const upper = String(q.difficulty).toUpperCase();
+          if (upper === "HARD") diff = "Hard";
+          else if (upper === "MEDIUM") diff = "Medium";
+          else diff = "Easy";
+        }
+
+        const tcRows = await db
+          .select()
+          .from(testCases)
+          .where(eq(testCases.questionId, q.id))
+          .orderBy(testCases.orderIndex);
+
+        problem = {
+          ...q,
+          difficulty: diff,
+          testcases: tcRows.map((tc, idx) => ({
+            id: tc.id || idx + 1,
+            name: tc.name || `Case ${idx + 1}`,
+            stdin: tc.stdin || "",
+            expectedStdout: tc.expectedStdout || "",
+            isHidden: Boolean(tc.isHidden),
+            explanation: tc.explanation || null,
+          })),
+        };
+      }
+    } catch (err) {
+      console.error("Error loading problem from DB:", err);
+    }
+  }
+
+  // Fallback to static data if database is offline
+  if (!problem) {
+    problem = problems.find((p) => p.slug === params.slug) || null;
+  }
+
+  if (!problem) {
+    return { notFound: true };
+  }
+
   return {
     props: {
       problemSlug: params.slug,
-      initialProblem: problem ? JSON.parse(JSON.stringify(problem)) : null,
+      initialProblem: JSON.parse(JSON.stringify(problem)),
     },
+    revalidate: 30,
   };
 }
+

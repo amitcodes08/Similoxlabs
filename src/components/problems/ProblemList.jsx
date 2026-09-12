@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -16,9 +16,12 @@ import {
   User,
   LogOut,
   ChevronDown,
-  GraduationCap
+  GraduationCap,
+  RefreshCw,
+  AlertCircle,
+  Database
 } from "lucide-react";
-import { problems, defaultSubmissions } from "@/data/problemsData";
+import { problems as fallbackProblems, defaultSubmissions } from "@/data/problemsData";
 import {
   Popover,
   PopoverTrigger,
@@ -30,6 +33,7 @@ import {
   DropdownItem
 } from "@heroui/react";
 import { useAuth } from "@/context/AuthContext";
+import { useProblems } from "@/hooks/useProblems";
 
 export default function ProblemList() {
   const router = useRouter();
@@ -76,6 +80,18 @@ export default function ProblemList() {
     }
   };
 
+  // Live questions state fetched & cached with TanStack Query
+  const {
+    data: problemsList = fallbackProblems,
+    isLoading: loading,
+    isError,
+    error,
+    isFetching,
+    refetch
+  } = useProblems();
+
+  const fetchError = isError ? error?.message || "Failed to load questions from database" : null;
+  const isRefreshing = isFetching && !loading;
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,16 +121,19 @@ export default function ProblemList() {
     return attemptedSet;
   }, [solvedProblemIds]);
 
-  // Stats calculation
+  // Stats calculation over live fetched questions
   const stats = useMemo(() => {
-    const total = problems.length;
+    const total = problemsList.length;
     let solved = 0;
     let easySolved = 0, easyTotal = 0;
     let medSolved = 0, medTotal = 0;
     let hardSolved = 0, hardTotal = 0;
 
-    problems.forEach((p) => {
-      const isSolved = solvedProblemIds.has(p.id);
+    problemsList.forEach((p) => {
+      const isSolved =
+        solvedProblemIds.has(p.id) ||
+        solvedProblemIds.has(p.number) ||
+        solvedProblemIds.has(Number(p.number));
       if (isSolved) solved++;
 
       if (p.difficulty === "Easy") {
@@ -139,11 +158,11 @@ export default function ProblemList() {
       hardSolved,
       hardTotal
     };
-  }, [solvedProblemIds]);
+  }, [problemsList, solvedProblemIds]);
 
   // Filter and sort problems
   const filteredProblems = useMemo(() => {
-    return problems
+    return problemsList
       .filter((problem) => {
         // Search filter (number, title, or topic)
         if (searchQuery.trim()) {
@@ -161,11 +180,16 @@ export default function ProblemList() {
           return false;
         }
 
+        const isSolved =
+          solvedProblemIds.has(problem.id) ||
+          solvedProblemIds.has(problem.number) ||
+          solvedProblemIds.has(Number(problem.number));
+
         // Status filter
-        if (statusFilter === "Solved" && !solvedProblemIds.has(problem.id)) {
+        if (statusFilter === "Solved" && !isSolved) {
           return false;
         }
-        if (statusFilter === "Todo" && solvedProblemIds.has(problem.id)) {
+        if (statusFilter === "Todo" && isSolved) {
           return false;
         }
 
@@ -188,6 +212,7 @@ export default function ProblemList() {
         return sortOrder === "asc" ? compare : -compare;
       });
   }, [
+    problemsList,
     searchQuery,
     difficultyFilter,
     statusFilter,
@@ -198,9 +223,9 @@ export default function ProblemList() {
 
   // Pick random problem
   const handlePickRandom = () => {
-    if (problems.length === 0) return;
-    const randomIndex = Math.floor(Math.random() * problems.length);
-    const randomProblem = problems[randomIndex];
+    if (problemsList.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * problemsList.length);
+    const randomProblem = problemsList[randomIndex];
     router.push(`/problems/${randomProblem.slug}`);
   };
 
@@ -238,7 +263,7 @@ export default function ProblemList() {
                 alt="LeetCode Logo"
                 className="w-6 h-6 object-contain"
               />
-              <span>LeetCode</span>
+              <span>Similox Labs</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-1 text-sm font-semibold">
@@ -248,33 +273,10 @@ export default function ProblemList() {
               >
                 Problems
               </Link>
-              <Link
-                href="/"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Dashboard</span>
-              </Link>
-              <span className="px-3.5 py-1.5 text-slate-400 cursor-not-allowed">
-                Contest
-              </span>
-              <span className="px-3.5 py-1.5 text-slate-400 cursor-not-allowed">
-                Discuss
-              </span>
             </nav>
           </div>
 
           <div className="flex items-center gap-3">
-            {isTeacher && (
-              <Link
-                href="/teacher"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Open Teacher Portal"
-              >
-                <GraduationCap className="w-4 h-4 text-slate-600" />
-                <span>Teacher Portal</span>
-              </Link>
-            )}
 
             <button
               onClick={handlePickRandom}
@@ -373,10 +375,7 @@ export default function ProblemList() {
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                   Problem Set
                 </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                  Practice coding interview questions with interactive test runner and multi-language editor.
-                </p>
-                <div className="flex items-center gap-3.5 mt-2.5 text-sm font-medium text-slate-600">
+                <div className="flex flex-wrap items-center gap-3.5 mt-2.5 text-sm font-medium text-slate-600">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>{stats.solved} Solved</span>
@@ -386,10 +385,13 @@ export default function ProblemList() {
                     <Circle className="w-4 h-4 text-slate-400" />
                     <span>{stats.total - stats.solved} Unsolved</span>
                   </span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-xs text-slate-500">
+                    Easy: <strong className="text-emerald-600">{stats.easyTotal}</strong> | Med: <strong className="text-amber-600">{stats.medTotal}</strong> | Hard: <strong className="text-rose-600">{stats.hardTotal}</strong>
+                  </span>
                 </div>
               </div>
             </div>
-
           </div>
         </section>
 
@@ -504,7 +506,48 @@ export default function ProblemList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredProblems.length === 0 ? (
+                {loading && problemsList.length === 0 ? (
+                  Array.from({ length: 10 }).map((_, idx) => (
+                    <tr key={`skel-${idx}`} className="animate-pulse">
+                      <td className="py-4 px-5 text-center">
+                        <div className="w-4.5 h-4.5 bg-slate-200 rounded-full mx-auto" />
+                      </td>
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-4 bg-slate-200 rounded w-48" />
+                        </div>
+                      </td>
+                      <td className="py-4 px-5">
+                        <div className="h-4 bg-slate-200 rounded w-14 font-mono" />
+                      </td>
+                      <td className="py-4 px-5">
+                        <div className="h-6 bg-slate-200 rounded w-16" />
+                      </td>
+                      <td className="py-4 px-5 text-center">
+                        <div className="w-8 h-8 bg-slate-100 rounded-lg mx-auto" />
+                      </td>
+                    </tr>
+                  ))
+                ) : fetchError && problemsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-14 text-center text-slate-400">
+                      <div className="max-w-xs mx-auto space-y-3">
+                        <AlertCircle className="w-9 h-9 text-rose-500 mx-auto" />
+                        <p className="font-semibold text-slate-800 text-base">Failed to fetch questions</p>
+                        <p className="text-[13px] text-slate-500">
+                          {fetchError}
+                        </p>
+                        <button
+                          onClick={() => refetch()}
+                          className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer shadow-xs"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          <span>Retry Fetch</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredProblems.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-14 text-center text-slate-400">
                       <div className="max-w-xs mx-auto space-y-2.5">
@@ -525,8 +568,14 @@ export default function ProblemList() {
                   </tr>
                 ) : (
                   filteredProblems.map((problem) => {
-                    const isSolved = solvedProblemIds.has(problem.id);
-                    const isAttempted = attemptedProblemIds.has(problem.id);
+                    const isSolved =
+                      solvedProblemIds.has(problem.id) ||
+                      solvedProblemIds.has(problem.number) ||
+                      solvedProblemIds.has(Number(problem.number));
+                    const isAttempted =
+                      attemptedProblemIds.has(problem.id) ||
+                      attemptedProblemIds.has(problem.number) ||
+                      attemptedProblemIds.has(Number(problem.number));
                     const isExempted = Boolean(problem.isExempted);
 
                     const difficultyBadgeStyles = {
@@ -537,7 +586,7 @@ export default function ProblemList() {
 
                     return (
                       <tr
-                        key={problem.id}
+                        key={problem.id || problem.slug}
                         onClick={() => router.push(`/problems/${problem.slug}`)}
                         className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                       >
@@ -552,7 +601,7 @@ export default function ProblemList() {
                           )}
                         </td>
 
-                        {/* Title (No topic tags) */}
+                        {/* Title */}
                         <td className="py-4 px-5">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-[15px] sm:text-base text-slate-900 group-hover:text-blue-600 transition-colors">
@@ -656,14 +705,8 @@ export default function ProblemList() {
           <div className="p-4.5 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between text-sm text-slate-500 gap-2">
             <span>
               Showing <strong className="text-slate-800">{filteredProblems.length}</strong> of{" "}
-              <strong className="text-slate-800">{problems.length}</strong> questions
+              <strong className="text-slate-800">{problemsList.length}</strong> questions
             </span>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] text-slate-400">
-                Click any problem to open the interactive code editor
-              </span>
-            </div>
           </div>
         </section>
       </main>
