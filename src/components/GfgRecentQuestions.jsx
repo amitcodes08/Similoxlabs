@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { CheckCircle2, Code2, ArrowUpRight, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@heroui/react";
 
 export default function GfgRecentQuestions({ questions = [] }) {
   const [activeFilter, setActiveFilter] = useState("All");
@@ -201,22 +202,24 @@ export default function GfgRecentQuestions({ questions = [] }) {
 
       {filteredQuestions.length > 6 && (
         <div className="pt-3 border-t border-slate-100 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+          <Button
+            color="primary"
+            radius="full"
+            size="sm"
+            onPress={() => setIsExpanded(!isExpanded)}
+            endContent={
+              isExpanded ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )
+            }
+            className="font-semibold shadow-xs"
           >
-            <span>
-              {isExpanded
-                ? "Show Less"
-                : `Show All (${filteredQuestions.length})`}
-            </span>
-            {isExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-            )}
-          </button>
+            {isExpanded
+              ? "Show Less"
+              : `Show All (${filteredQuestions.length})`}
+          </Button>
         </div>
       )}
     </div>

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import TeacherLayout from "@/components/teacher/Layout";
 import { useTeacher } from "@/context/TeacherContext";
+import { Button } from "@heroui/react";
 
 export default function TeacherDashboard() {
   const router = useRouter();
@@ -134,13 +135,17 @@ export default function TeacherDashboard() {
             </p>
           </div>
 
-          <Link
+          <Button
+            as={Link}
             href="/teacher/questions/create"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+            color="primary"
+            radius="full"
+            size="sm"
+            startContent={<Plus className="w-4 h-4" />}
+            className="font-semibold shadow-xs self-start sm:self-auto"
           >
-            <Plus className="w-4 h-4" />
-            <span>Create Question</span>
-          </Link>
+            Create Question
+          </Button>
         </div>
 
         {/* Overview Metric Cards (White and Gray - strictly no gradients) */}
@@ -250,17 +255,20 @@ export default function TeacherDashboard() {
             </div>
 
             {(searchQuery || difficultyFilter !== "All") && (
-              <button
-                onClick={() => {
+              <Button
+                color="primary"
+                radius="full"
+                size="sm"
+                onPress={() => {
                   setSearchQuery("");
                   setDifficultyFilter("All");
                 }}
-                className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                startContent={<RotateCcw className="w-3.5 h-3.5" />}
                 title="Reset Filters"
+                className="font-semibold"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Reset</span>
-              </button>
+              </Button>
             )}
           </div>
         </div>

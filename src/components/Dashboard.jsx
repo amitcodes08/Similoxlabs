@@ -8,23 +8,26 @@ import LeetcodeHeader from "./LeetcodeHeader";
 import RecentQuestions from "./RecentQuestions";
 import PlatformTabs from "./PlatformTabs";
 import GfgDashboard from "./GfgDashboard";
+import SimiloxDashboard from "./similox/SimiloxDashboard";
 
 export default function Dashboard({ data = mockUserData }) {
-  const [activePlatform, setActivePlatform] = useState("leetcode");
+  const [activePlatform, setActivePlatform] = useState("similox");
   const currentData = data || mockUserData;
   const { user, submissionsTimeline, problemSolving, contestStats, languages } =
     currentData;
 
   return (
-    <div className="min-h-screen bg-[#fafbfc] text-slate-800 flex flex-col font-sans selection:bg-slate-200">
-      <div className="w-full max-w-[1340px] mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+    <div className="min-h-screen bg-[#fafbfc] text-gray-800 flex flex-col font-sans selection:bg-gray-200">
+      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-5">
         <PlatformTabs
           activePlatform={activePlatform}
           onSelectPlatform={setActivePlatform}
         />
       </div>
 
-      {activePlatform === "leetcode" ? (
+      {activePlatform === "similox" ? (
+        <SimiloxDashboard />
+      ) : activePlatform === "leetcode" ? (
         <>
           <LeetcodeHeader />
 

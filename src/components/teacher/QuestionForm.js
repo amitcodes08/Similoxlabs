@@ -13,6 +13,7 @@ import {
   SlidersHorizontal
 } from "lucide-react";
 import { useTeacher } from "@/context/TeacherContext";
+import { Button } from "@heroui/react";
 
 export default function QuestionForm({ mode = "create", initialData = null }) {
   const router = useRouter();
@@ -265,27 +266,31 @@ public class Solution {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/teacher")}
-            className="px-4 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          <Button
+            color="primary"
+            variant="flat"
+            radius="full"
+            size="sm"
+            onPress={() => router.push("/teacher")}
+            className="font-semibold"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            color="primary"
+            radius="full"
+            size="sm"
+            isLoading={isSubmitting}
+            startContent={!isSubmitting && <Save className="w-3.5 h-3.5" />}
+            className="font-semibold shadow-xs"
           >
-            <Save className="w-3.5 h-3.5" />
-            <span>
-              {isSubmitting
-                ? "Saving to Database..."
-                : mode === "edit"
-                ? "Save Changes"
-                : "Create Question"}
-            </span>
-          </button>
+            {isSubmitting
+              ? "Saving to Database..."
+              : mode === "edit"
+              ? "Save Changes"
+              : "Create Question"}
+          </Button>
         </div>
       </div>
 
@@ -413,13 +418,15 @@ public class Solution {
                   placeholder="Type topic and press Enter..."
                   className="w-full text-xs bg-transparent text-gray-900 outline-none px-1"
                 />
-                <button
-                  type="button"
-                  onClick={handleAddTopic}
-                  className="px-2.5 py-1 text-[11px] font-semibold text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-100 transition-colors shrink-0 cursor-pointer"
+                <Button
+                  color="primary"
+                  radius="full"
+                  size="sm"
+                  onPress={handleAddTopic}
+                  className="text-xs font-semibold shrink-0"
                 >
                   Add
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -514,13 +521,15 @@ public class Solution {
                 placeholder="e.g. 1 <= nums.length <= 10^5"
                 className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-900 text-xs focus:bg-white focus:border-gray-400 outline-none transition-colors font-mono"
               />
-              <button
-                type="button"
-                onClick={handleAddConstraint}
-                className="px-3 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-semibold transition-colors cursor-pointer"
+              <Button
+                color="primary"
+                radius="full"
+                size="sm"
+                onPress={handleAddConstraint}
+                className="text-xs font-semibold shrink-0"
               >
                 Add Constraint
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -535,14 +544,16 @@ public class Solution {
               3. Sample Cases (Visible to Students)
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={handleAddExample}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          <Button
+            color="primary"
+            radius="full"
+            size="sm"
+            onPress={handleAddExample}
+            startContent={<Plus className="w-3.5 h-3.5" />}
+            className="font-semibold shadow-2xs"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Sample Case</span>
-          </button>
+            Add Sample Case
+          </Button>
         </div>
 
         <div className="space-y-4">
@@ -627,14 +638,16 @@ public class Solution {
               4. Evaluation Test Cases (Grading)
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={handleAddTestCase}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          <Button
+            color="primary"
+            radius="full"
+            size="sm"
+            onPress={handleAddTestCase}
+            startContent={<Plus className="w-3.5 h-3.5" />}
+            className="font-semibold shadow-2xs"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Evaluation Case</span>
-          </button>
+            Add Evaluation Case
+          </Button>
         </div>
 
         <div className="space-y-3">
@@ -736,27 +749,29 @@ public class Solution {
 
       {/* Action footer */}
       <div className="flex items-center justify-end gap-3 pt-2">
-        <button
-          type="button"
-          onClick={() => router.push("/teacher")}
-          className="px-5 py-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+        <Button
+          color="primary"
+          variant="flat"
+          radius="full"
+          onPress={() => router.push("/teacher")}
+          className="font-semibold"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={isSubmitting}
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          color="primary"
+          radius="full"
+          isLoading={isSubmitting}
+          startContent={!isSubmitting && <Save className="w-4 h-4" />}
+          className="font-semibold shadow-xs"
         >
-          <Save className="w-4 h-4" />
-          <span>
-            {isSubmitting
-              ? "Saving to Database..."
-              : mode === "edit"
-              ? "Save Changes"
-              : "Create Question"}
-          </span>
-        </button>
+          {isSubmitting
+            ? "Saving to Database..."
+            : mode === "edit"
+            ? "Save Changes"
+            : "Create Question"}
+        </Button>
       </div>
     </form>
   );

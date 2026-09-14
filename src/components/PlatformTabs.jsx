@@ -5,14 +5,29 @@ import { Code2 } from "lucide-react";
 export default function PlatformTabs({ activePlatform, onSelectPlatform }) {
   return (
     <div className="flex items-center justify-between flex-wrap gap-3 pb-5">
-      <div className="inline-flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200 shadow-xs">
+      <div className="inline-flex items-center p-1 bg-gray-100/90 rounded-xl border border-gray-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => onSelectPlatform("similox")}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+            activePlatform === "similox"
+              ? "bg-white text-gray-900 font-bold shadow-xs"
+              : "text-gray-600 hover:text-gray-900 font-medium"
+          }`}
+        >
+          <div className="w-4 h-4 rounded-md bg-gray-900 text-white flex items-center justify-center font-bold text-[10px]">
+            S
+          </div>
+          <span>Similox Labs</span>
+        </button>
+
         <button
           type="button"
           onClick={() => onSelectPlatform("leetcode")}
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
             activePlatform === "leetcode"
-              ? "bg-white text-slate-900 font-bold shadow-xs"
-              : "text-slate-600 hover:text-slate-900 font-medium"
+              ? "bg-white text-gray-900 font-bold shadow-xs"
+              : "text-gray-600 hover:text-gray-900 font-medium"
           }`}
         >
           <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/webp/leetcode.webp" alt="LeetCode" className="w-4 h-4"/>
@@ -24,8 +39,8 @@ export default function PlatformTabs({ activePlatform, onSelectPlatform }) {
           onClick={() => onSelectPlatform("gfg")}
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
             activePlatform === "gfg"
-              ? "bg-white text-slate-900 font-bold shadow-xs"
-              : "text-slate-600 hover:text-slate-900 font-medium"
+              ? "bg-white text-gray-900 font-bold shadow-xs"
+              : "text-gray-600 hover:text-gray-900 font-medium"
           }`}
         >
           <img src="https://cdn.simpleicons.org/geeksforgeeks/2F8D46" alt="GeeksforGeeks" className="w-4 h-4"/>
@@ -36,16 +51,20 @@ export default function PlatformTabs({ activePlatform, onSelectPlatform }) {
       <div className="flex items-center gap-3">
         <Link
           href="/problems"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 shadow-2xs transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 shadow-2xs transition-all"
         >
-          <Code2 className="w-3.5 h-3.5 text-slate-600" />
+          <Code2 className="w-3.5 h-3.5 text-gray-600" />
           <span>Problems (Practice)</span>
         </Link>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-          <span>Active Platform:</span>
-          <span className="font-semibold text-slate-700">
-            {activePlatform === "leetcode" ? "LeetCode Profile" : "GeeksforGeeks Profile"}
+        <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400">
+          <span>Active View:</span>
+          <span className="font-semibold text-gray-700">
+            {activePlatform === "similox"
+              ? "Similox Labs Dashboard"
+              : activePlatform === "leetcode"
+              ? "LeetCode Profile"
+              : "GeeksforGeeks Profile"}
           </span>
         </div>
       </div>

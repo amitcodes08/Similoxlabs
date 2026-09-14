@@ -28,6 +28,7 @@ import DemoEditor from "../DemoEditor";
 import ProblemDescription from "./ProblemDescription";
 import { useProblem } from "@/hooks/useProblems";
 import { problems as fallbackProblems, defaultSubmissions } from "@/data/problemsData";
+import { Button } from "@heroui/react";
 
 function normalizeOutput(str) {
   if (typeof str !== "string") str = String(str || "");
@@ -166,9 +167,10 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
         problem.starterCode[language] ||
         problem.starterCode.javascript ||
         "";
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCode(starter);
     }
-  }, [problem?.id, language]);
+  }, [problem?.id, language, problem?.starterCode]);
   const [fontSize, setFontSize] = useState(14);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -544,25 +546,31 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
 
         {/* Center: Run & Submit Buttons (True Geometric Center) */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-          <button
-            onClick={handleRunCode}
-            disabled={isRunning}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
+          <Button
+            color="primary"
+            radius="full"
+            size="sm"
+            isLoading={isRunning}
+            onPress={handleRunCode}
+            startContent={!isRunning && <Play className="w-3.5 h-3.5 fill-current" />}
+            className="font-semibold shadow-xs"
             title="Run code (Ctrl + ')"
           >
-            <Play className="w-3.5 h-3.5 fill-slate-700 text-slate-700" />
-            <span>{isRunning ? "Running..." : "Run"}</span>
-          </button>
+            {isRunning ? "Running..." : "Run"}
+          </Button>
 
-          <button
-            onClick={handleSubmitCode}
-            disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-2xs active:scale-98 cursor-pointer disabled:opacity-50"
+          <Button
+            color="primary"
+            radius="full"
+            size="sm"
+            isLoading={isSubmitting}
+            onPress={handleSubmitCode}
+            startContent={!isSubmitting && <CheckCircle2 className="w-3.5 h-3.5" />}
+            className="font-semibold shadow-xs"
             title="Submit code (Ctrl + Enter)"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>{isSubmitting ? "Submitting..." : "Submit"}</span>
-          </button>
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </Button>
         </div>
 
         {/* Right: Stopwatch, Back to Dashboard */}
@@ -653,14 +661,17 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
             {/* Language Selector */}
             <div className="flex items-center gap-2">
               {isPanelCollapsed && (
-                <button
-                  onClick={() => setIsPanelCollapsed(false)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                <Button
+                  color="primary"
+                  radius="full"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => setIsPanelCollapsed(false)}
+                  startContent={<PanelLeft className="w-3.5 h-3.5" />}
                   title="Show Problem Description"
                 >
-                  <PanelLeft className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Show Description</span>
-                </button>
+                </Button>
               )}
               <Code2 className="w-4 h-4 text-slate-500" />
               <select
@@ -1039,22 +1050,29 @@ export default function CodeEditorWorkspace({ initialSlug, initialProblem }) {
             </div>
 
             <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={() => setShowSubmitModal(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+              <Button
+                color="primary"
+                radius="full"
+                variant="flat"
+                size="sm"
+                className="flex-1 font-semibold"
+                onPress={() => setShowSubmitModal(false)}
               >
                 Close
-              </button>
+              </Button>
 
-              <button
-                onClick={() => {
+              <Button
+                color="primary"
+                radius="full"
+                size="sm"
+                className="flex-1 font-semibold"
+                onPress={() => {
                   setShowSubmitModal(false);
                   router.push("/problems");
                 }}
-                className="flex-1 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer transition-colors"
               >
                 Problem List
-              </button>
+              </Button>
             </div>
           </div>
         </div>

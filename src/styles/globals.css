@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@config "../../tailwind.config.js";
+@source "../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
 /* Hide scrollbar cross-browser while preserving scrolling functionality */
 .no-scrollbar::-webkit-scrollbar,

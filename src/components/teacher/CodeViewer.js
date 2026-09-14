@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Copy, Check, Code2, Terminal } from "lucide-react";
+import { Button } from "@heroui/react";
 
 export default function CodeViewer({
   code = "",
@@ -36,24 +37,23 @@ export default function CodeViewer({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer shadow-2xs"
-          title="Copy code to clipboard"
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-emerald-600">Copied</span>
-            </>
-          ) : (
-            <>
+        <Button
+          color="primary"
+          radius="full"
+          size="sm"
+          onPress={handleCopy}
+          startContent={
+            copied ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
               <Copy className="w-3.5 h-3.5" />
-              <span>Copy Code</span>
-            </>
-          )}
-        </button>
+            )
+          }
+          title="Copy code to clipboard"
+          className="text-xs font-semibold shadow-2xs"
+        >
+          {copied ? "Copied" : "Copy Code"}
+        </Button>
       </div>
 
       {/* Code Body with Line Numbers */}

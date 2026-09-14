@@ -3,6 +3,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ArrowLeft, Home, Code2 } from "lucide-react";
+import { Button } from "@heroui/react";
 
 export default function ErrorPage({
   statusCode = 404,
@@ -53,30 +54,39 @@ export default function ErrorPage({
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
+            <Button
+              as={Link}
               href="/"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-colors shadow-xs"
+              color="primary"
+              radius="full"
+              startContent={<Home className="w-4 h-4" />}
+              className="font-semibold shadow-xs"
             >
-              <Home className="w-4 h-4" />
-              <span>Go to Home</span>
-            </Link>
+              Go to Home
+            </Button>
 
-            <Link
+            <Button
+              as={Link}
               href="/problems"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm border border-slate-200 transition-colors shadow-2xs"
+              color="primary"
+              variant="bordered"
+              radius="full"
+              startContent={<Code2 className="w-4 h-4 text-slate-500" />}
+              className="font-semibold shadow-2xs"
             >
-              <Code2 className="w-4 h-4 text-slate-500" />
-              <span>Problems</span>
-            </Link>
+              Problems
+            </Button>
 
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium text-sm transition-colors cursor-pointer"
+            <Button
+              color="primary"
+              variant="flat"
+              radius="full"
+              onPress={() => router.back()}
+              startContent={<ArrowLeft className="w-4 h-4" />}
+              className="font-medium"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </button>
+              Back
+            </Button>
           </div>
         </div>
       </main>

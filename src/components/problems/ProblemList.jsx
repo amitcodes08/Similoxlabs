@@ -278,14 +278,17 @@ export default function ProblemList() {
 
           <div className="flex items-center gap-3">
 
-            <button
-              onClick={handlePickRandom}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+            <Button
+              color="primary"
+              radius="full"
+              size="sm"
+              onPress={handlePickRandom}
+              startContent={<Shuffle className="w-4 h-4" />}
               title="Pick a random problem to solve"
+              className="font-semibold shadow-xs"
             >
-              <Shuffle className="w-4 h-4 text-slate-600" />
               <span className="hidden sm:inline">Pick One</span>
-            </button>
+            </Button>
 
             <Dropdown
               placement="bottom-end"
@@ -455,14 +458,17 @@ export default function ProblemList() {
               {(searchQuery ||
                 difficultyFilter !== "All" ||
                 statusFilter !== "All") && (
-                <button
-                  onClick={handleResetFilters}
-                  className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer font-medium"
+                <Button
+                  color="primary"
+                  radius="full"
+                  size="sm"
+                  onPress={handleResetFilters}
+                  startContent={<RotateCcw className="w-3.5 h-3.5" />}
                   title="Reset all filters"
+                  className="font-medium"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
-                </button>
+                  Reset
+                </Button>
               )}
             </div>
           </div>
@@ -537,13 +543,15 @@ export default function ProblemList() {
                         <p className="text-[13px] text-slate-500">
                           {fetchError}
                         </p>
-                        <button
-                          onClick={() => refetch()}
-                          className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer shadow-xs"
+                        <Button
+                          color="primary"
+                          radius="full"
+                          onPress={() => refetch()}
+                          startContent={<RefreshCw className="w-4 h-4" />}
+                          className="mt-2 font-semibold shadow-xs"
                         >
-                          <RefreshCw className="w-4 h-4" />
-                          <span>Retry Fetch</span>
-                        </button>
+                          Retry Fetch
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -556,13 +564,15 @@ export default function ProblemList() {
                         <p className="text-[13px] text-slate-400">
                           Try adjusting your search query or clear selected filters.
                         </p>
-                        <button
-                          onClick={handleResetFilters}
-                          className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        <Button
+                          color="primary"
+                          radius="full"
+                          onPress={handleResetFilters}
+                          startContent={<RotateCcw className="w-4 h-4" />}
+                          className="mt-2.5 font-semibold"
                         >
-                          <RotateCcw className="w-4 h-4" />
-                          <span>Clear Filters</span>
-                        </button>
+                          Clear Filters
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -663,17 +673,17 @@ export default function ProblemList() {
                                 className="w-68 bg-white p-3 space-y-2 text-left select-none"
                               >
                                 {/* SECTION 1: Go to Question Button */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    router.push(`/problems/${problem.slug}`);
-                                  }}
-                                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                                <Button
+                                  color="primary"
+                                  radius="full"
+                                  size="sm"
+                                  fullWidth
+                                  onPress={() => router.push(`/problems/${problem.slug}`)}
+                                  endContent={<ArrowRight className="w-3.5 h-3.5" />}
+                                  className="font-semibold shadow-xs"
                                 >
-                                  <span>Go to Question</span>
-                                  <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                                </button>
+                                  Go to Question
+                                </Button>
 
                                 {/* SECTION 2: Small Note on Question */}
                                 {isExempted && (
